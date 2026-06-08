@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Env & secrets — NEVER commit real secrets. Only .env.example is committed.
+.env
+.env.local
+*.local
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Run artifacts (logs, traces, videos, reports) — generated, not source
+runs/
+artifacts/
+*.log
+playwright-report/
+test-results/
+trace.zip
+*.webm
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
