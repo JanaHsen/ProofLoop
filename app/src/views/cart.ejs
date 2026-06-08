@@ -1,0 +1,30 @@
+<%- include("partials/head", { title: "Cart" }) %>
+  <h1>Your Cart</h1>
+  <% if (lines.length === 0) { %>
+    <p>Your cart is empty. <a href="/products">Browse products</a>.</p>
+  <% } else { %>
+    <table class="cart-table">
+      <thead>
+        <tr><th>Item</th><th>Unit</th><th>Qty</th><th>Line total</th></tr>
+      </thead>
+      <tbody>
+        <% lines.forEach(function (line) { %>
+          <tr>
+            <td><%= line.name %></td>
+            <td>$<%= (line.unitPriceCents / 100).toFixed(2) %></td>
+            <td><%= line.quantity %></td>
+            <td>$<%= (line.lineTotalCents / 100).toFixed(2) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr><td colspan="3">Subtotal</td><td data-test="subtotal">$<%= (totals.subtotalCents / 100).toFixed(2) %></td></tr>
+        <tr><td colspan="3">Tax</td><td data-test="tax">$<%= (totals.taxCents / 100).toFixed(2) %></td></tr>
+        <tr><td colspan="3"><strong>Total</strong></td><td data-test="total"><strong>$<%= (totals.totalCents / 100).toFixed(2) %></strong></td></tr>
+      </tfoot>
+    </table>
+    <form method="get" action="/checkout">
+      <button type="submit">Proceed to Checkout</button>
+    </form>
+  <% } %>
+<%- include("partials/foot") %>

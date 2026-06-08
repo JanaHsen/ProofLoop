@@ -85,11 +85,11 @@ map to a cell below, don't add it.
 *Serves:* establishes the URL boundary and secrets discipline before any code.
 *Next depends on it:* the app reads `PROOFLOOP_BUGS`, a contract that must already exist.
 
-- [ ] Confirm the directory structure matches `../CLAUDE.md` (`app/`, `platform/`,
+- [x] Confirm the directory structure matches `../CLAUDE.md` (`app/`, `platform/`,
       `fixtures/flows/`, `phases/`, `.github/workflows/`). Create any missing dir.
-- [ ] Confirm `.gitignore` ignores `.env`; confirm `.env.example` exists and lists every
+- [x] Confirm `.gitignore` ignores `.env`; confirm `.env.example` exists and lists every
       planned var. Do **not** create a real `.env` with secrets — that's the human's job.
-- [ ] `git init` if not already a repo.
+- [x] `git init` if not already a repo.
 
 🚦 **HUMAN GATE:** ask the human to run `cp .env.example .env` and fill local values.
 Do not create or populate `.env` yourself.
@@ -101,10 +101,10 @@ Do not create or populate `.env` yourself.
 *Next depends on it:* you can't define "correct behaviour" without the flows existing,
 and you can't seed a state-dependent bug without real sessions.
 
-- [ ] Stand up the app in `app/`, served on `APP_PORT`.
-- [ ] Routes/pages for: login (real session), product list + add-to-cart, cart +
+- [x] Stand up the app in `app/`, served on `APP_PORT`.
+- [x] Routes/pages for: login (real session), product list + add-to-cart, cart +
       checkout, and a standalone validated form.
-- [ ] App boots, all four pages reachable. No bugs yet.
+- [x] App boots, all four pages reachable. No bugs yet.
 
 ✅ **COMMIT:** `feat(app): scaffold SUT shell with four flow surfaces`
 

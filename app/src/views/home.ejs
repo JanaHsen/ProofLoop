@@ -1,0 +1,15 @@
+<%- include("partials/head", { title: "Home" }) %>
+  <h1>ProofLoop System Under Test</h1>
+  <p>The minimal app the ProofLoop platform tests against. Four flow surfaces:</p>
+  <ul class="flows">
+    <li><a href="/login">Login</a> — real server-side session</li>
+    <li><a href="/products">Products &amp; add-to-cart</a> — requires login</li>
+    <li><a href="/cart">Cart &amp; checkout</a> — requires login</li>
+    <li><a href="/form">Validated form</a> — public</li>
+  </ul>
+  <% if (activeBugs && activeBugs.length > 0) { %>
+    <p class="bugs-active">Active toggles: <code><%= activeBugs.join(", ") %></code></p>
+  <% } else { %>
+    <p class="bugs-clean">Clean baseline (no toggles active).</p>
+  <% } %>
+<%- include("partials/foot") %>

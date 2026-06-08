@@ -1,0 +1,22 @@
+<%- include("partials/head", { title: "Products" }) %>
+  <h1>Products</h1>
+  <% if (typeof error !== "undefined" && error) { %>
+    <p class="error" role="alert"><%= error %></p>
+  <% } %>
+  <ul class="product-list">
+    <% products.forEach(function (p) { %>
+      <li class="product">
+        <a class="product-name" href="/products/<%= p.id %>"><%= p.name %></a>
+        <span class="product-price">$<%= (p.priceCents / 100).toFixed(2) %></span>
+        <form method="post" action="/cart/add" class="inline">
+          <input type="hidden" name="productId" value="<%= p.id %>" />
+          <label>
+            Qty
+            <input type="number" name="quantity" min="1" value="1" />
+          </label>
+          <button type="submit">Add to Cart</button>
+        </form>
+      </li>
+    <% }) %>
+  </ul>
+<%- include("partials/foot") %>

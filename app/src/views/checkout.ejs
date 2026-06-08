@@ -1,0 +1,28 @@
+<%- include("partials/head", { title: "Checkout" }) %>
+  <h1>Checkout</h1>
+  <p>Review your order before placing it.</p>
+  <table class="cart-table">
+    <thead>
+      <tr><th>Item</th><th>Unit</th><th>Qty</th><th>Line total</th></tr>
+    </thead>
+    <tbody>
+      <% lines.forEach(function (line) { %>
+        <tr>
+          <td><%= line.name %></td>
+          <td>$<%= (line.unitPriceCents / 100).toFixed(2) %></td>
+          <td><%= line.quantity %></td>
+          <td>$<%= (line.lineTotalCents / 100).toFixed(2) %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+    <tfoot>
+      <tr><td colspan="3">Subtotal</td><td data-test="subtotal">$<%= (totals.subtotalCents / 100).toFixed(2) %></td></tr>
+      <tr><td colspan="3">Tax</td><td data-test="tax">$<%= (totals.taxCents / 100).toFixed(2) %></td></tr>
+      <tr><td colspan="3"><strong>Total</strong></td><td data-test="total"><strong>$<%= (totals.totalCents / 100).toFixed(2) %></strong></td></tr>
+    </tfoot>
+  </table>
+  <form method="post" action="/checkout">
+    <button type="submit">Place Order</button>
+  </form>
+  <p><a href="/cart">&larr; Back to cart</a></p>
+<%- include("partials/foot") %>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= typeof title === "string" ? title : "ProofLoop SUT" %></title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">ProofLoop SUT</a>
+      <nav>
+        <a href="/products">Products</a>
+        <a href="/cart">Cart</a>
+        <a href="/form">Form</a>
+        <% if (currentUser) { %>
+          <span class="user">Signed in as <strong><%= currentUser %></strong></span>
+          <form method="post" action="/logout" class="inline">
+            <button type="submit">Log out</button>
+          </form>
+        <% } else { %>
+          <a href="/login">Log in</a>
+        <% } %>
+      </nav>
+    </header>
+    <main>
