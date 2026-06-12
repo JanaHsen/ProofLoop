@@ -3,6 +3,13 @@
   <% if (lines.length === 0) { %>
     <p>Your cart is empty. <a href="/products">Browse products</a>.</p>
   <% } else { %>
+    <% if (activeBugs.includes("MUT-003")) { %>
+      <%# MUT-003: checkout button relocated ABOVE the cart table (different DOM
+          position). Identical markup, action, and behaviour — structure only. %>
+      <form method="get" action="/checkout">
+        <button type="submit">Proceed to Checkout</button>
+      </form>
+    <% } %>
     <table class="cart-table">
       <thead>
         <tr><th>Item</th><th>Unit</th><th>Qty</th><th>Line total</th></tr>
@@ -23,8 +30,10 @@
         <tr><td colspan="3"><strong>Total</strong></td><td><strong>$<%= (totals.totalCents / 100).toFixed(2) %></strong></td></tr>
       </tfoot>
     </table>
-    <form method="get" action="/checkout">
-      <button type="submit">Proceed to Checkout</button>
-    </form>
+    <% if (!activeBugs.includes("MUT-003")) { %>
+      <form method="get" action="/checkout">
+        <button type="submit">Proceed to Checkout</button>
+      </form>
+    <% } %>
   <% } %>
 <%- include("partials/foot") %>

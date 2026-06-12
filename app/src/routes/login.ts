@@ -13,7 +13,9 @@ loginRouter.get("/login", (req, res) => {
 });
 
 loginRouter.post("/login", (req, res) => {
-  const username = String(req.body.username ?? "").trim();
+  // MUT-002 renames the username field to `user_name` in the markup; behaviour
+  // must stay identical, so accept either field name here (self-heal target).
+  const username = String(req.body.username ?? req.body.user_name ?? "").trim();
   const password = String(req.body.password ?? "");
   const next = String(req.body.next ?? "");
 
