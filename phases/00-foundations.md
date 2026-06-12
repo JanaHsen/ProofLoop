@@ -55,6 +55,17 @@ the eval harness will calibrate against. Treat the ledger as a test oracle.
   verdict oracle. Honesty caveat: "On a fully test-id-instrumented codebase, a traditional script
   regains most structural robustness; ProofLoop's strongest claim is for uninstrumented apps.
   Phase 7's comparison and writeup must carry this caveat."
+- **D7 — `detection_requires` is a first-class ledger field; the rest of the pipeline MUST honor it.**
+  Several defects are only observable if the flow/execution does a specific thing: attempt an
+  invalid (non-positive) amount (BUG-003); verify order *persistence* rather than trusting the
+  success screen (BUG-005); run at a mobile viewport ≤480px (BUG-007); have visual-regression
+  capability (BUG-006, not planned). Each bug records this in `detection_requires`. **Phase 1's flow
+  set and Phase 5's execution config MUST satisfy every non-empty `detection_requires`, and Phase 7
+  scores verdicts against them.** A defect whose `detection_requires` is never met is a
+  *structurally guaranteed* false-pass, not a platform miss — and the headline numbers would
+  silently flatter the platform. The injection-layer taxonomy is `shared-logic | render-site |
+  route-handler | session-lifecycle`; `shared-logic` defects also corrupt `/debug/state` (mirror
+  agrees), whereas `render-site` defects leave the mirror correct — the divergence localizes the layer.
 
 ---
 
