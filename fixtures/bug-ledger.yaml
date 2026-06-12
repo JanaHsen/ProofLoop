@@ -1,0 +1,165 @@
+# ProofLoop bug ledger — GROUND TRUTH / verdict oracle (Phase 0, Task 7).
+#
+# This file is the answer key the Phase 7 evaluation harness grades against.
+# `/debug/state` is only a STATE MIRROR of the running app (it reports the wrong
+# numbers when bugs are on); THIS file is the sole verdict oracle.
+#
+# Toggles live in the PROOFLOOP_BUGS env var (comma-separated). Bugs are tested
+# singly; the supported multi-flag configurations are single-bug and
+# bug+mutation compositions (never multiple bugs at once).
+#
+# Field legend:
+#   injection_layer    where the defect is injected:
+#                        shared-logic       — shared computation (computeTotals);
+#                                             /debug/state reflects the same wrong value.
+#                        route-handler       — request-handler logic (routing/validation);
+#                                             mirror reflects the true consequence.
+#                        render-site         — a single page's presentation;
+#                                             mirror stays CORRECT while the page lies.
+#                        session-lifecycle   — session/auth lifetime.
+#                        dom-structure       — (mutations) DOM position only.
+#   detection_requires what a flow/execution MUST do for the defect to be
+#                      observable (empty if none). Phase 1's flow set and Phase 5's
+#                      execution config must honor every non-empty value; Phase 7
+#                      scores against them. (See Decision D7.)
+#   script_would_catch would a traditional selector-script catch the bug (bugs) /
+#                      would it FALSE-FAIL on the benign change (mutations).
+#   expected_verdict   what ProofLoop SHOULD return on the named flow.
+
+notes: >
+  On a fully test-id-instrumented codebase, a traditional script regains most
+  structural robustness; ProofLoop's strongest claim is for uninstrumented apps.
+  Phase 7's comparison and writeup must carry this caveat.
+
+bugs:
+  - id: BUG-001
+    title: "Checkout submit returns 404; order never placed"
+    flow: checkout
+    category: behavior
+    subtlety: obvious
+    injection_layer: route-handler
+    toggle: BUG-001
+    trigger: "Log in, add an item, open checkout, and submit (POST /checkout)."
+    expected_behavior: "The order is placed and the user is redirected to /order/:id."
+    actual_behavior: "POST /checkout returns HTTP 404 and no order is created. /debug/state shows no new order (mirror agrees)."
+    expected_verdict: FAIL
+    script_would_catch: yes
+    detection_requires: ""
+
+  - id: BUG-002
+    title: "Cart drops the tax line (Tax $0.00, Total == Subtotal)"
+    flow: add-to-cart
+    category: behavior
+    subtlety: moderate
+    injection_layer: shared-logic
+    toggle: BUG-002
+    trigger: "Add any item and view the cart (also visible on checkout and the order confirmation)."
+    expected_behavior: "Tax = round(subtotal x 0.10); Total = Subtotal + Tax."
+    actual_behavior: "taxCents computes to 0, so the page shows 'Tax $0.00' and Total == Subtotal. Because the defect is in the shared total path, /debug/state reports the same wrong numbers."
+    expected_verdict: FAIL
+    script_would_catch: only-with-total-assertion
+    detection_requires: ""
+
+  - id: BUG-003
+    title: "Amount field accepts non-positive numbers"
+    flow: form
+    category: behavior
+    subtlety: moderate
+    injection_layer: route-handler
+    toggle: BUG-003
+    trigger: "Submit the validated form with a negative or zero amount (e.g. amount=-5) plus a valid name and email."
+    expected_behavior: "Validation rejects non-positive amounts ('Amount must be a positive whole number.')."
+    actual_behavior: "A non-positive integer amount is accepted and the form reports success. Non-numeric input is still rejected."
+    expected_verdict: FAIL
+    script_would_catch: only-with-boundary-assertion
+    detection_requires: "Flow must attempt an invalid (non-positive) amount, not only valid input."
+
+  - id: BUG-004
+    title: "Order confirmation shows the wrong total (tax dropped on confirmation only)"
+    flow: checkout
+    category: behavior
+    subtlety: subtle
+    injection_layer: render-site
+    toggle: BUG-004
+    trigger: "Complete checkout and compare the Total on the cart/checkout pages with the Total on the /order/:id confirmation."
+    expected_behavior: "The confirmation Total equals the cart/checkout Total (Subtotal + Tax)."
+    actual_behavior: "The confirmation renders the Subtotal in the Total slot (tax dropped) — wrong on the confirmation page ONLY. Cart/checkout, the stored order, and /debug/state all stay correct, which localizes the defect to the render layer."
+    expected_verdict: FAIL
+    script_would_catch: rarely-needs-cross-page-assertion
+    detection_requires: ""
+
+  - id: BUG-005
+    title: "Stale session silently loses the order at checkout"
+    flow: checkout
+    category: state-dependent
+    subtlety: subtle
+    injection_layer: session-lifecycle
+    toggle: BUG-005
+    trigger: "Log in, add an item, and submit checkout (POST /checkout)."
+    expected_behavior: "A real order is persisted, the user lands on /order/:id, the order is retrievable, and the session stays valid."
+    actual_behavior: "The session is destroyed at submission; a plausible inline confirmation (HTTP 200, 'Order placed') renders with a fake order id but nothing is persisted. The URL never advances to /order/:id; revisiting the fake id 404s; the user is silently logged out (the next authenticated request bounces to /login). /debug/state shows no such order and the session gone."
+    expected_verdict: FAIL
+    script_would_catch: almost-never
+    detection_requires: "Acceptance criteria must verify order PERSISTENCE (revisit /order/:id or confirm it exists), not merely trust the confirmation render."
+
+  - id: BUG-006
+    title: "Long product name overflows its container"
+    flow: product-page
+    category: visual
+    subtlety: subtle
+    injection_layer: render-site
+    toggle: BUG-006
+    trigger: "With BUG-006 on, open the products list and the p-005 detail page; the long name overflows/clips."
+    expected_behavior: "A long product name truncates or wraps within its container."
+    actual_behavior: "The name overflows its container and clips/overlaps adjacent UI. The text is still present in the DOM, so an outcome-based check ('the name is displayed') passes."
+    expected_verdict: PASS-known-blind-spot
+    script_would_catch: no
+    detection_requires: "Visual-regression capability (NOT planned) — this is the basis for the blind-spot scoring."
+
+  - id: BUG-007
+    title: "Checkout button click intercepted at mobile viewport"
+    flow: checkout
+    category: viewport
+    subtlety: subtle
+    injection_layer: render-site
+    toggle: BUG-007
+    trigger: "At viewport width <=480px, open checkout and try to click 'Place Order'."
+    expected_behavior: "The checkout button is actionable at every supported viewport width."
+    actual_behavior: "At <=480px a transparent overlay scoped to the button's container intercepts the click, so the button is genuinely not actionable (it is not merely off-screen, which Playwright would auto-scroll past). Desktop is unaffected; the server-side POST still works if reached."
+    expected_verdict: FAIL
+    script_would_catch: only-if-run-at-mobile-size
+    detection_requires: "Execution at a mobile viewport (<=480px)."
+
+mutations:
+  - id: MUT-001
+    title: "Rename 'Add to Cart' to 'Add to Bag'"
+    flow: add-to-cart
+    category: structure-mutation
+    injection_layer: render-site
+    toggle: MUT-001
+    change: "Button label text changes from 'Add to Cart' to 'Add to Bag'. Form action/method and behaviour are identical."
+    expected_verdict: PASS
+    script_would_catch: "n/a (no defect); a script keyed on the button text would FALSE-FAIL."
+    detection_requires: ""
+
+  - id: MUT-002
+    title: "Rename login username field to user_name"
+    flow: login
+    category: structure-mutation
+    injection_layer: render-site
+    toggle: MUT-002
+    change: "The login username input id/name changes from 'username' to 'user_name'. The server accepts either field name, so login behaviour is identical."
+    expected_verdict: PASS
+    script_would_catch: "n/a (no defect); a script keyed on input[name=username] would FALSE-FAIL."
+    detection_requires: ""
+
+  - id: MUT-003
+    title: "Relocate the checkout button within the cart page"
+    flow: checkout
+    category: structure-mutation
+    injection_layer: dom-structure
+    toggle: MUT-003
+    change: "The 'Proceed to Checkout' button moves from below the cart table to above it (different DOM position). Identical markup, action, and behaviour."
+    expected_verdict: PASS
+    script_would_catch: "n/a (no defect); a script keyed on DOM order/position would FALSE-FAIL."
+    detection_requires: ""
