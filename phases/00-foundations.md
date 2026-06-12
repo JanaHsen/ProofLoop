@@ -120,9 +120,12 @@ and you can't seed a state-dependent bug without real sessions.
 *Serves:* the CLEAN row — your false-fail reference (the zero point).
 *Next depends on it:* if "clean" is silently wrong, every false-fail number is garbage.
 
-- [ ] Make all four flows genuinely correct (right totals, valid/invalid input handled
-      correctly, checkout completes, session enforced).
-- [ ] With `PROOFLOOP_BUGS` empty, manually walk all four flows and confirm correct.
+- [x] Make all four flows genuinely correct (right totals, valid/invalid input handled
+      correctly, checkout completes, session enforced). Orders now freeze a full line
+      snapshot; `/order/:id` renders solely from the order record (architect gate fix).
+- [x] With `PROOFLOOP_BUGS` empty, manually walk all four flows and confirm correct.
+      (Human verified in-browser; re-verified via curl smoke checks — cart/checkout/order
+      totals identical at $58.97/$5.90/$64.87 for the sample cart.)
 - [x] Strip all hand-placed test instrumentation (`data-test` attributes) from the SUT
       templates — the SUT models an *uninstrumented* app, ProofLoop's primary target case.
       Verified zero `data-test` occurrences under `app/src`.
@@ -135,7 +138,7 @@ and you can't seed a state-dependent bug without real sessions.
 🚦 **HUMAN GATE:** human confirms the clean baseline is actually correct before any bug
 is injected.
 
-- [ ] Tag the verified baseline: `git tag v0-clean`.
+- [x] Tag the verified baseline: `git tag v0-clean`. (Annotated tag on commit `131b98f`.)
 
 ✅ **COMMIT:** `feat(app): correct, verified clean baseline for all four flows`
 
