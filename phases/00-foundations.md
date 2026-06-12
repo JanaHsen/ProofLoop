@@ -47,6 +47,14 @@ the eval harness will calibrate against. Treat the ledger as a test oracle.
   file. Build the app so that boundary is natural.
 - **D5 — Secrets by layer from commit 1.** Already scaffolded in `.gitignore` /
   `.env.example`. Never hardcode.
+- **D6 — SUT carries no test instrumentation; oracle access is via token-gated `/debug` API;
+  the ledger is the verdict oracle, `/debug/state` is a state mirror.** The SUT models an
+  uninstrumented app (no `data-test` anchors). Ground-truth state is read through a token-gated
+  `/debug` API: `/debug/state` mirrors the app's *actual* state (wrong totals and all, when bugs
+  are on) and is a diagnosis mirror, NOT the answer key — `fixtures/bug-ledger.yaml` remains the
+  verdict oracle. Honesty caveat: "On a fully test-id-instrumented codebase, a traditional script
+  regains most structural robustness; ProofLoop's strongest claim is for uninstrumented apps.
+  Phase 7's comparison and writeup must carry this caveat."
 
 ---
 
@@ -115,6 +123,14 @@ and you can't seed a state-dependent bug without real sessions.
 - [ ] Make all four flows genuinely correct (right totals, valid/invalid input handled
       correctly, checkout completes, session enforced).
 - [ ] With `PROOFLOOP_BUGS` empty, manually walk all four flows and confirm correct.
+- [x] Strip all hand-placed test instrumentation (`data-test` attributes) from the SUT
+      templates — the SUT models an *uninstrumented* app, ProofLoop's primary target case.
+      Verified zero `data-test` occurrences under `app/src`.
+- [x] Add a token-gated `/debug` test-fixture API (header `X-Debug-Token` vs env
+      `PROOFLOOP_DEBUG_TOKEN`; default-deny 404 when the token is unset/empty):
+      `GET /debug/state` (actual-state mirror across **all** sessions — for the separate-process
+      grading harness) and `POST /debug/expire-session` (on-demand session destruction for the
+      Task 8 verification walk). This is test infrastructure, not one of the four flows.
 
 🚦 **HUMAN GATE:** human confirms the clean baseline is actually correct before any bug
 is injected.
@@ -221,6 +237,12 @@ not self-certify Phase 0 complete.
 ## Bug ledger schema (`fixtures/bug-ledger.yaml`)
 
 ```yaml
+# Top-level honesty caveat — lands in the ledger so the answer key itself carries it.
+notes: >
+  On a fully test-id-instrumented codebase, a traditional script regains most
+  structural robustness; ProofLoop's strongest claim is for uninstrumented apps.
+  Phase 7's comparison and writeup must carry this caveat.
+
 bugs:
   - id: BUG-002
     title: Cart total drops tax line
