@@ -15,10 +15,23 @@ export interface CartLine {
   quantity: number;
 }
 
+// Full line snapshot frozen into an Order at checkout. Unlike CartLine (which
+// only references a product id), this captures name/unit-price/line-total as
+// they were at purchase time, so /order/:id renders entirely from the order
+// record and never re-derives from — or silently drops a line against — the
+// live catalog.
+export interface OrderLine {
+  productId: string;
+  name: string;
+  unitPriceCents: number;
+  quantity: number;
+  lineTotalCents: number;
+}
+
 export interface Order {
   id: string;
   username: string;
-  lines: CartLine[];
+  lines: OrderLine[];
   subtotalCents: number;
   taxCents: number;
   totalCents: number;

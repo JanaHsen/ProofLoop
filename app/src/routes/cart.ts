@@ -7,18 +7,11 @@ import {
   TAX_RATE,
   type CartLine,
   type Order,
+  type OrderLine,
 } from "../store";
 import { requireAuth } from "../auth";
 
 export const cartRouter = Router();
-
-interface RenderedLine {
-  productId: string;
-  name: string;
-  unitPriceCents: number;
-  quantity: number;
-  lineTotalCents: number;
-}
 
 interface Totals {
   subtotalCents: number;
@@ -28,8 +21,9 @@ interface Totals {
 
 // Exported so the /debug/state mirror (routes/debug.ts) reports subtotal/tax/
 // total via the EXACT same path the flows use — no second, divergable copy.
-export function computeTotals(lines: CartLine[]): { rendered: RenderedLine[]; totals: Totals } {
-  const rendered: RenderedLine[] = [];
+// Its `rendered` output is also the exact snapshot frozen into an Order.
+export function computeTotals(lines: CartLine[]): { rendered: OrderLine[]; totals: Totals } {
+  const rendered: OrderLine[] = [];
   let subtotalCents = 0;
   for (const line of lines) {
     const product = findProduct(line.productId);
@@ -76,12 +70,12 @@ cartRouter.post("/checkout", requireAuth, (req, res) => {
     res.redirect("/cart");
     return;
   }
-  const { totals } = computeTotals(lines);
+  const { rendered, totals } = computeTotals(lines);
 
   const order: Order = {
     id: nextOrderId(),
     username,
-    lines: lines.map((l) => ({ ...l })),
+    lines: rendered,
     subtotalCents: totals.subtotalCents,
     taxCents: totals.taxCents,
     totalCents: totals.totalCents,
@@ -98,20 +92,7 @@ cartRouter.get("/order/:id", requireAuth, (req, res) => {
     res.status(404).render("not-found", { what: "Order" });
     return;
   }
-  const rendered: RenderedLine[] = [];
-  for (const line of order.lines) {
-    const product = findProduct(line.productId);
-    if (!product) continue;
-    rendered.push({
-      productId: product.id,
-      name: product.name,
-      unitPriceCents: product.priceCents,
-      quantity: line.quantity,
-      lineTotalCents: product.priceCents * line.quantity,
-    });
-  }
-  res.render("order", {
-    order,
-    lines: rendered,
-  });
+  // Render entirely from the frozen order snapshot — never re-derive line
+  // details from the live catalog (single source of truth per the gate).
+  res.render("order", { order, lines: order.lines });
 });
