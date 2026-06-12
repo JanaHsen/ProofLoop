@@ -1,3 +1,5 @@
+import { bugOn } from "./config";
+
 export interface User {
   username: string;
   password: string;
@@ -45,12 +47,27 @@ export const users: ReadonlyArray<User> = [
   { username: "bob", password: "hunter2", displayName: "Bob" },
 ];
 
-export const products: ReadonlyArray<Product> = [
+const baseProducts: ReadonlyArray<Product> = [
   { id: "p-001", name: "Notebook", priceCents: 499 },
   { id: "p-002", name: "Mechanical Pencil", priceCents: 1299 },
   { id: "p-003", name: "Desk Lamp", priceCents: 2499 },
   { id: "p-004", name: "Coffee Mug", priceCents: 899 },
 ];
+
+// BUG-006 (visual blind spot): a product whose name is long enough to overflow
+// its container on the product page. ADDED (never a rename of an existing item)
+// so the four clean flows are untouched — preserves bug isolation. Outcome-based
+// testing PASSES this: the name text is present in the DOM, just visually broken.
+// Scored as a known blind spot, not a platform defect. See fixtures/bug-ledger.yaml.
+const OVERFLOW_PRODUCT: Product = {
+  id: "p-005",
+  name: "Limited Edition Artisan Hand-Crafted Solid Walnut Executive Desk Organizer with Integrated Wireless Charging Pad, Fountain-Pen Tray, and Hand-Polished Brass Accents",
+  priceCents: 1999,
+};
+
+export const products: ReadonlyArray<Product> = bugOn("BUG-006")
+  ? [...baseProducts, OVERFLOW_PRODUCT]
+  : baseProducts;
 
 export function findUser(username: string, password: string): User | undefined {
   return users.find(

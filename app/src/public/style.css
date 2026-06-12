@@ -63,7 +63,11 @@ button:hover { filter: brightness(0.95); }
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--border);
 }
-.product-name { font-weight: 600; color: var(--fg); text-decoration: none; }
+/* white-space:nowrap makes an over-long product name (BUG-006's added p-005)
+   overflow its container and clip/overlap adjacent UI instead of wrapping.
+   Clean short names are visually unaffected. The name text stays present in the
+   DOM, so outcome-based testing PASSES it — a documented visual blind spot. */
+.product-name { font-weight: 600; color: var(--fg); text-decoration: none; white-space: nowrap; }
 .product-price { color: var(--muted); }
 
 .cart-table {
@@ -77,6 +81,23 @@ button:hover { filter: brightness(0.95); }
   border-bottom: 1px solid var(--border);
 }
 .cart-table tfoot td { border-bottom: none; }
+
+/* BUG-007 (viewport blind spot): a transparent overlay scoped to the checkout
+   button's own container. Hidden on desktop; at <=480px it covers the button
+   and intercepts pointer events, so the button is genuinely not actionable
+   (Playwright auto-scrolls to off-screen elements, so off-screen alone would
+   not reproduce). Verdict is unconditional FAIL; observable only at mobile. */
+.checkout-action { position: relative; }
+.viewport-trap { display: none; }
+@media (max-width: 480px) {
+  .viewport-trap {
+    display: block;
+    position: absolute;
+    inset: -8px;
+    z-index: 10;
+    background: transparent;
+  }
+}
 
 .bugs-active { color: var(--error); }
 .bugs-clean { color: var(--success); }

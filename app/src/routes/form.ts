@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { bugOn } from "../config";
 
 export const formRouter = Router();
 
@@ -25,11 +26,16 @@ function validate(values: FormValues): FormErrors {
     errors.email = "Email must be a valid address.";
   }
   const amountNum = Number(values.amount);
+  // BUG-003 (route-handler): when on, the validator stops rejecting non-positive
+  // amounts (negatives / zero) — it still requires a finite integer, so the
+  // boundary defect is the only change. Flow must submit an invalid amount to
+  // observe it (see detection_requires in the ledger).
+  const rejectNonPositive = !bugOn("BUG-003");
   if (
     values.amount.trim().length === 0 ||
     !Number.isFinite(amountNum) ||
     !Number.isInteger(amountNum) ||
-    amountNum <= 0
+    (rejectNonPositive && amountNum <= 0)
   ) {
     errors.amount = "Amount must be a positive whole number.";
   }

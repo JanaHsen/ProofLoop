@@ -21,8 +21,17 @@
       <tr><td colspan="3"><strong>Total</strong></td><td><strong>$<%= (totals.totalCents / 100).toFixed(2) %></strong></td></tr>
     </tfoot>
   </table>
-  <form method="post" action="/checkout">
-    <button type="submit">Place Order</button>
-  </form>
+  <div class="checkout-action">
+    <% if (activeBugs.includes("BUG-007")) { %>
+      <%# BUG-007 (viewport): at <=480px a transparent overlay tied to this
+          button's container covers it and intercepts the click — genuinely not
+          actionable, not merely off-screen. Desktop is unaffected. See style.css
+          .viewport-trap. %>
+      <div class="viewport-trap" aria-hidden="true"></div>
+    <% } %>
+    <form method="post" action="/checkout">
+      <button type="submit">Place Order</button>
+    </form>
+  </div>
   <p><a href="/cart">&larr; Back to cart</a></p>
 <%- include("partials/foot") %>

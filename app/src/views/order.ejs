@@ -18,7 +18,7 @@
     <tfoot>
       <tr><td colspan="3">Subtotal</td><td>$<%= (order.subtotalCents / 100).toFixed(2) %></td></tr>
       <tr><td colspan="3">Tax</td><td>$<%= (order.taxCents / 100).toFixed(2) %></td></tr>
-      <tr><td colspan="3"><strong>Total</strong></td><td><strong>$<%= (order.totalCents / 100).toFixed(2) %></strong></td></tr>
+      <tr><td colspan="3"><strong>Total</strong></td><td><strong>$<%= (displayTotalCents / 100).toFixed(2) %></strong></td></tr>
     </tfoot>
   </table>
   <p><a href="/products">Continue shopping</a></p>

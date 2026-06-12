@@ -10,6 +10,7 @@ import {
   type OrderLine,
 } from "../store";
 import { requireAuth } from "../auth";
+import { bugOn } from "../config";
 
 export const cartRouter = Router();
 
@@ -38,7 +39,10 @@ export function computeTotals(lines: CartLine[]): { rendered: OrderLine[]; total
       lineTotalCents,
     });
   }
-  const taxCents = Math.round(subtotalCents * TAX_RATE);
+  // BUG-002 (shared-logic): drop the tax line — taxCents computes to 0, so the
+  // page shows "Tax $0.00" and Total == Subtotal. Lives in the shared total
+  // path, so /debug/state reports the same wrong numbers (mirror agrees).
+  const taxCents = bugOn("BUG-002") ? 0 : Math.round(subtotalCents * TAX_RATE);
   const totalCents = subtotalCents + taxCents;
   return { rendered, totals: { subtotalCents, taxCents, totalCents } };
 }
@@ -60,6 +64,13 @@ cartRouter.get("/checkout", requireAuth, (req, res) => {
 });
 
 cartRouter.post("/checkout", requireAuth, (req, res) => {
+  // BUG-001 (route-handler): the checkout route is dead — the submit 404s and no
+  // order is ever placed. /debug/state agrees (nothing persisted).
+  if (bugOn("BUG-001")) {
+    res.status(404).render("not-found", { what: "Page" });
+    return;
+  }
+
   const username = req.session.username;
   if (!username) {
     res.redirect("/login");
@@ -71,6 +82,34 @@ cartRouter.post("/checkout", requireAuth, (req, res) => {
     return;
   }
   const { rendered, totals } = computeTotals(lines);
+
+  if (bugOn("BUG-005")) {
+    // BUG-005 (state-dependent, session-lifecycle): treat the session as expired
+    // at submission. We hold the cart/totals, so we render a plausible inline
+    // confirmation — but DESTROY the session and persist NOTHING. Anomalies a
+    // thorough tester can catch: the URL never advances to /order/:id (this is
+    // the POST /checkout response, no redirect); the fake order id 404s if
+    // revisited (never saved); the user is silently logged out (the next authed
+    // request bounces to /login). A lazy tester trusting the success screen
+    // waves the lost order through.
+    const fakeOrderId = nextOrderId(); // consumes an id but saves no order
+    req.session.destroy(() => {
+      res.render("order", {
+        order: {
+          id: fakeOrderId,
+          username,
+          lines: rendered,
+          subtotalCents: totals.subtotalCents,
+          taxCents: totals.taxCents,
+          totalCents: totals.totalCents,
+          createdAt: new Date().toISOString(),
+        },
+        lines: rendered,
+        displayTotalCents: totals.totalCents,
+      });
+    });
+    return;
+  }
 
   const order: Order = {
     id: nextOrderId(),
@@ -92,7 +131,15 @@ cartRouter.get("/order/:id", requireAuth, (req, res) => {
     res.status(404).render("not-found", { what: "Order" });
     return;
   }
+  // BUG-004 (render-site): distort ONLY the displayed total at the confirmation
+  // render — show the subtotal in the total slot (tax dropped on this page only).
+  // Cart/checkout stay correct, so the defect lives purely in presentation.
+  // NEVER mutate the stored Order: the record (and /debug/state) must stay
+  // correct, or the mirror-vs-page layer-diagnostic collapses.
+  const displayTotalCents = bugOn("BUG-004")
+    ? order.subtotalCents
+    : order.totalCents;
   // Render entirely from the frozen order snapshot — never re-derive line
   // details from the live catalog (single source of truth per the gate).
-  res.render("order", { order, lines: order.lines });
+  res.render("order", { order, lines: order.lines, displayTotalCents });
 });
