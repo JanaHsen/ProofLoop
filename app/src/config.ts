@@ -29,10 +29,18 @@ function readBugFlags(): ReadonlySet<string> {
   return new Set(flags);
 }
 
+// Token that gates the /debug/* test-fixture API. Empty/unset == feature
+// disabled (every /debug/* route 404s). Harness-only — the black-box engine
+// never sends it; see .env.example and routes/debug.ts.
+function readDebugToken(): string {
+  return process.env.PROOFLOOP_DEBUG_TOKEN ?? "";
+}
+
 export const config = {
   port: readPort(),
   sessionSecret: readSessionSecret(),
   bugs: readBugFlags(),
+  debugToken: readDebugToken(),
 } as const;
 
 export function bugOn(flag: string): boolean {

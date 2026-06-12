@@ -5,10 +5,12 @@ import session from "express-session";
 import { config } from "./config";
 import { log } from "./logger";
 import { currentUser } from "./auth";
+import { sessionStore } from "./session-store";
 import { loginRouter } from "./routes/login";
 import { productsRouter } from "./routes/products";
 import { cartRouter } from "./routes/cart";
 import { formRouter } from "./routes/form";
+import { debugRouter } from "./routes/debug";
 
 const app = express();
 
@@ -21,6 +23,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use(
   session({
     name: "proofloop.sid",
+    store: sessionStore,
     secret: config.sessionSecret,
     resave: false,
     saveUninitialized: false,
@@ -50,6 +53,7 @@ app.use(loginRouter);
 app.use(productsRouter);
 app.use(cartRouter);
 app.use(formRouter);
+app.use(debugRouter);
 
 app.use((_req, res) => {
   res.status(404).render("not-found", { what: "Page" });

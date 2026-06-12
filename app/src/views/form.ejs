@@ -1,7 +1,7 @@
 <%- include("partials/head", { title: "Validated form" }) %>
   <h1>Submit a request</h1>
   <% if (submitted) { %>
-    <p class="success" role="status" data-test="form-success">
+    <p class="success" role="status">
       Request received for <strong><%= values.name %></strong>
       (<%= values.email %>) — amount <%= values.amount %>.
     </p>

@@ -26,7 +26,9 @@ interface Totals {
   totalCents: number;
 }
 
-function computeTotals(lines: CartLine[]): { rendered: RenderedLine[]; totals: Totals } {
+// Exported so the /debug/state mirror (routes/debug.ts) reports subtotal/tax/
+// total via the EXACT same path the flows use — no second, divergable copy.
+export function computeTotals(lines: CartLine[]): { rendered: RenderedLine[]; totals: Totals } {
   const rendered: RenderedLine[] = [];
   let subtotalCents = 0;
   for (const line of lines) {

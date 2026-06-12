@@ -59,6 +59,10 @@ export function getOrder(id: string): Order | undefined {
   return orders.get(id);
 }
 
+export function allOrders(): Order[] {
+  return Array.from(orders.values());
+}
+
 let orderSeq = 0;
 export function nextOrderId(): string {
   orderSeq += 1;
