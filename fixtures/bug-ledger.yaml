@@ -43,7 +43,7 @@ bugs:
     expected_behavior: "The order is placed and the user is redirected to /order/:id."
     actual_behavior: "POST /checkout returns HTTP 404 and no order is created. /debug/state shows no new order (mirror agrees)."
     expected_verdict: FAIL
-    script_would_catch: yes
+    script_would_catch: "yes"
     detection_requires: ""
 
   - id: BUG-002
@@ -83,7 +83,7 @@ bugs:
     toggle: BUG-004
     trigger: "Complete checkout and compare the Total on the cart/checkout pages with the Total on the /order/:id confirmation."
     expected_behavior: "The confirmation Total equals the cart/checkout Total (Subtotal + Tax)."
-    actual_behavior: "The confirmation renders the Subtotal in the Total slot (tax dropped) — wrong on the confirmation page ONLY. Cart/checkout, the stored order, and /debug/state all stay correct, which localizes the defect to the render layer."
+    actual_behavior: "The confirmation renders the Subtotal in the Total slot (tax dropped) — wrong on the confirmation page ONLY. Cart/checkout, the stored order, and /debug/state all stay correct, which localizes the defect to the render layer. The confirmation is also internally inconsistent: it shows the correct Tax line yet Total == Subtotal, so Subtotal + Tax != the displayed Total — an on-page contradiction an intent-based agent could catch without any cross-page comparison."
     expected_verdict: FAIL
     script_would_catch: rarely-needs-cross-page-assertion
     detection_requires: ""
@@ -111,9 +111,9 @@ bugs:
     toggle: BUG-006
     trigger: "With BUG-006 on, open the products list and the p-005 detail page; the long name overflows/clips."
     expected_behavior: "A long product name truncates or wraps within its container."
-    actual_behavior: "The name overflows its container and clips/overlaps adjacent UI. The text is still present in the DOM, so an outcome-based check ('the name is displayed') passes."
+    actual_behavior: "The name overflows its container and clips/overlaps adjacent UI. The text is still present in the DOM, so an outcome-based check ('the name is displayed') passes. Flows must NOT assert an exact product count: p-005's appearance is the bug's vehicle, not a defect — asserting 'exactly four products' would itself cause a spurious false-fail."
     expected_verdict: PASS-known-blind-spot
-    script_would_catch: no
+    script_would_catch: "no"
     detection_requires: "Visual-regression capability (NOT planned) — this is the basis for the blind-spot scoring."
 
   - id: BUG-007
