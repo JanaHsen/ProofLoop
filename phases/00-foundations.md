@@ -200,20 +200,23 @@ Note: there is no browser-driving engine yet (that's Phase 2), so verification i
 human-led. Prepare assistance where you can (e.g. a short script or `curl` checks, a
 printed walk-through), then hand off.
 
-- [ ] For every ledger entry: enable its flag, walk the documented `trigger`, confirm the
+- [x] For every ledger entry: enable its flag, walk the documented `trigger`, confirm the
       `actual_behavior` matches reality on exactly the flow named, then disable and
       confirm the flow returns to correct.
-- [ ] For every mutation: enable it, confirm the flow still *behaves* correctly though
+- [x] For every mutation: enable it, confirm the flow still *behaves* correctly though
       structure moved.
 
 🚦 **HUMAN GATE:** the human performs (or signs off on) the full verification walk. Do
-not self-certify Phase 0 complete.
+not self-certify Phase 0 complete. *(Human confirmed 2026-06-15: every walked
+observation matched, including the `BUG-002,MUT-001` composition and a final
+all-flags-off clean pass.)*
 
 ### Task 9 — Freeze ground truth
 *Serves:* reproducibility — Phase 7 must re-run identical app states later.
 
-- [ ] Record, in the repo, the exact flag combinations that produce each matrix cell.
-- [ ] Tag the verified seeded state.
+- [x] Record, in the repo, the exact flag combinations that produce each matrix cell.
+      (`fixtures/matrix-states.md`.)
+- [x] Tag the verified seeded state. (Annotated tag `v0-ground-truth`.)
 
 ✅ **COMMIT:** `chore: freeze and document Phase 0 ground-truth states`
 
