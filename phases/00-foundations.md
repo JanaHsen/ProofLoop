@@ -75,11 +75,12 @@ Pick the boring stack you move fastest in (a small Node/TS server + thin fronten
 default; small Next.js is fine). A little async/dynamic rendering is **desirable** — it
 keeps Phases 5/8 honest about timing and non-determinism. The app MUST have:
 
-- [ ] Real **server-side session/auth** (not just a localStorage flag) — required for the
-      state-dependent bug.
-- [ ] Four flows: **login**, **add-to-cart**, **checkout**, a **form with validation**.
-- [ ] **Deployable headless in CI** (runs behind a URL in GitHub Actions, Phase 6).
-- [ ] **Bug state read from config at startup** (`PROOFLOOP_BUGS`), never edited per-run.
+- [x] Real **server-side session/auth** (not just a localStorage flag) — required for the
+      state-dependent bug. (`express-session` + `MemoryStore`; BUG-005 exercises it.)
+- [x] Four flows: **login**, **add-to-cart**, **checkout**, a **form with validation**.
+- [x] **Deployable headless in CI** — runs as a headless Node HTTP server behind a URL
+      (verified). The GitHub Actions wiring itself lands in Phase 6.
+- [x] **Bug state read from config at startup** (`PROOFLOOP_BUGS`), never edited per-run.
 
 ---
 
@@ -157,7 +158,7 @@ is injected.
 *Serves:* ensures real difficulty range and a defensible answer key.
 *Next depends on it:* Tasks 5–7 implement and document exactly this set.
 
-- [ ] Adopt the recommended bug set below (adjust to the app, keep the spread). Confirm
+- [x] Adopt the recommended bug set below (adjust to the app, keep the spread). Confirm
       the set includes: at least one obvious, several moderate/subtle, **at least one
       state-dependent**, and the two honest-blind-spot cases (visual + viewport).
 
@@ -167,8 +168,8 @@ See **Recommended bug set** and **Honesty notes** below — read both before cod
 *Serves:* the BUGGY row.
 *Next depends on it:* BUGGY+MUTATED requires bugs and mutations to compose cleanly.
 
-- [ ] Implement each `BUG-xxx` gated behind its flag in `PROOFLOOP_BUGS`.
-- [ ] Flag off == identical to clean. Bugs are **isolated** — enabling one must not
+- [x] Implement each `BUG-xxx` gated behind its flag in `PROOFLOOP_BUGS`.
+- [x] Flag off == identical to clean. Bugs are **isolated** — enabling one must not
       perturb another, or the matrix becomes uninterpretable.
 
 ✅ **COMMIT:** `feat(app): seeded bugs behind PROOFLOOP_BUGS toggles`
@@ -177,7 +178,7 @@ See **Recommended bug set** and **Honesty notes** below — read both before cod
 *Serves:* the MUTATED and BUGGY+MUTATED rows — Phase 3's self-heal & regression-trap tests.
 *Next depends on it:* Phase 3 cannot prove "heal structure, fail behaviour" without these.
 
-- [ ] Implement each `MUT-xxx` (rename element, move it in DOM, change `id`/`name`) behind
+- [x] Implement each `MUT-xxx` (rename element, move it in DOM, change `id`/`name`) behind
       a toggle. **None changes behaviour** — only structure.
 
 ✅ **COMMIT:** `feat(app): benign structure mutations behind toggles`
@@ -187,7 +188,7 @@ See **Recommended bug set** and **Honesty notes** below — read both before cod
 *Next depends on it:* Phase 7 parses this; Phase 1 writes acceptance criteria to match
 what the ledger calls "correct."
 
-- [ ] Author `fixtures/bug-ledger.yaml` using the schema below. One entry per `BUG-xxx`
+- [x] Author `fixtures/bug-ledger.yaml` using the schema below. One entry per `BUG-xxx`
       and `MUT-xxx`. Every field present, including the honesty column.
 
 ✅ **COMMIT:** `feat(fixtures): bug ledger + mutation registry with expected verdicts`
@@ -330,17 +331,18 @@ toggleable mutations, and a verified machine-parseable ledger. Nothing more.
 
 ## Exit Checklist (the gate to Phase 1)
 
-- [ ] App runs behind `BASE_URL` with login, add-to-cart, checkout, validated form.
-- [ ] CLEAN baseline manually verified correct on all four flows; tagged `v0-clean`.
-- [ ] Each `BUG-xxx` toggles on/off; off == clean; bugs are isolated.
-- [ ] Each `MUT-xxx` toggles on/off and does not change behaviour.
-- [ ] At least one state-dependent bug with a deterministic, on-demand trigger.
-- [ ] `fixtures/bug-ledger.yaml` documents every bug and mutation with all fields incl.
+- [x] App runs behind `BASE_URL` with login, add-to-cart, checkout, validated form.
+- [x] CLEAN baseline manually verified correct on all four flows; tagged `v0-clean`.
+- [x] Each `BUG-xxx` toggles on/off; off == clean; bugs are isolated.
+- [x] Each `MUT-xxx` toggles on/off and does not change behaviour.
+- [x] At least one state-dependent bug with a deterministic, on-demand trigger. (BUG-005.)
+- [x] `fixtures/bug-ledger.yaml` documents every bug and mutation with all fields incl.
       `expected_verdict` and `script_would_catch`.
-- [ ] Every ledger entry manually walked and confirmed (Task 8 human gate passed).
-- [ ] Honest blind spots (overflow / mobile dependency) recorded in the ledger.
-- [ ] `.gitignore`, `.env.example` correct; nothing hardcoded; no real `.env` committed.
-- [ ] The four matrix states reproducible from documented flag combinations; tagged.
+- [x] Every ledger entry manually walked and confirmed (Task 8 human gate passed 2026-06-15).
+- [x] Honest blind spots (overflow / mobile dependency) recorded in the ledger.
+- [x] `.gitignore`, `.env.example` correct; nothing hardcoded; no real `.env` committed.
+- [x] The four matrix states reproducible from documented flag combinations
+      (`fixtures/matrix-states.md`); tagged `v0-ground-truth`.
 
 ---
 
