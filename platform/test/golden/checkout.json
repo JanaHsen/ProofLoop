@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0",
+  "id": "checkout",
+  "name": "Complete checkout and confirm the order persists",
+  "entry": "/login",
+  "viewport": "desktop",
+  "tags": [
+    "checkout",
+    "persistence"
+  ],
+  "steps": [
+    {
+      "id": "checkout:S1",
+      "ordinal": 1,
+      "text": "Sign in as \"alice\" with password \"password123\"."
+    },
+    {
+      "id": "checkout:S2",
+      "ordinal": 2,
+      "text": "Add the \"Desk Lamp\" twice and the \"Coffee Mug\" once."
+    },
+    {
+      "id": "checkout:S3",
+      "ordinal": 3,
+      "text": "Proceed to checkout and place the order."
+    },
+    {
+      "id": "checkout:S4",
+      "ordinal": 4,
+      "text": "Revisit the order's own link as a fresh visit."
+    }
+  ],
+  "criteria": [
+    {
+      "id": "checkout:C1",
+      "ordinal": 1,
+      "text": "Placing the order succeeds: the user reaches an order-confirmation page for a real, newly created order — not an error page and not a dead end.",
+      "after": "checkout:S3"
+    },
+    {
+      "id": "checkout:C2",
+      "ordinal": 2,
+      "text": "On the confirmation, the figures reconcile: the Subtotal plus the Tax equals the Total shown.",
+      "after": "checkout:S3"
+    },
+    {
+      "id": "checkout:C3",
+      "ordinal": 3,
+      "text": "When the order's own link is revisited, the same order is still retrievable and shows the same items and the same Total as when it was placed.",
+      "after": "checkout:S4"
+    }
+  ]
+}

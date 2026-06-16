@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "id": "form",
+  "name": "Validated form rejects an invalid amount",
+  "entry": "/form",
+  "viewport": "desktop",
+  "tags": [
+    "form",
+    "validation"
+  ],
+  "steps": [
+    {
+      "id": "form:S1",
+      "ordinal": 1,
+      "text": "Fill in the name \"Jana\", the email \"jana@example.com\", and an amount of \"25\", then submit the form."
+    },
+    {
+      "id": "form:S2",
+      "ordinal": 2,
+      "text": "Fill in the name \"Jana\", the email \"jana@example.com\", and an amount of \"-5\", then submit the form."
+    }
+  ],
+  "criteria": [
+    {
+      "id": "form:C1",
+      "ordinal": 1,
+      "text": "The valid submission (a positive whole-number amount with a valid name and email) is accepted: the form reports the request was received.",
+      "after": "form:S1"
+    },
+    {
+      "id": "form:C2",
+      "ordinal": 2,
+      "text": "The submission with a negative amount of -5 is rejected as invalid and is NOT accepted, even though the name and email are valid.",
+      "after": "form:S2"
+    }
+  ]
+}

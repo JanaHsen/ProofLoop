@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0",
+  "id": "login",
+  "name": "Log in with valid credentials",
+  "entry": "/login",
+  "viewport": "desktop",
+  "tags": [
+    "auth",
+    "smoke"
+  ],
+  "steps": [
+    {
+      "id": "login:S1",
+      "ordinal": 1,
+      "text": "Enter the username \"alice\" and the password \"password123\"."
+    },
+    {
+      "id": "login:S2",
+      "ordinal": 2,
+      "text": "Submit the sign-in form."
+    },
+    {
+      "id": "login:S3",
+      "ordinal": 3,
+      "text": "Go to the product list, which is only available to signed-in users."
+    }
+  ],
+  "criteria": [
+    {
+      "id": "login:C1",
+      "ordinal": 1,
+      "text": "After submitting valid credentials the user is signed in: the product list loads instead of bouncing back to the sign-in page."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1.0",
+  "id": "add-to-cart",
+  "name": "Add items to the cart and verify the totals",
+  "entry": "/login",
+  "viewport": "desktop",
+  "tags": [
+    "cart",
+    "totals"
+  ],
+  "steps": [
+    {
+      "id": "add-to-cart:S1",
+      "ordinal": 1,
+      "text": "Sign in as \"alice\" with password \"password123\"."
+    },
+    {
+      "id": "add-to-cart:S2",
+      "ordinal": 2,
+      "text": "Open the product list."
+    },
+    {
+      "id": "add-to-cart:S3",
+      "ordinal": 3,
+      "text": "Add the \"Desk Lamp\" to the cart twice."
+    },
+    {
+      "id": "add-to-cart:S4",
+      "ordinal": 4,
+      "text": "Add the \"Coffee Mug\" to the cart once."
+    },
+    {
+      "id": "add-to-cart:S5",
+      "ordinal": 5,
+      "text": "Open the cart."
+    }
+  ],
+  "criteria": [
+    {
+      "id": "add-to-cart:C1",
+      "ordinal": 1,
+      "text": "The Subtotal equals the sum of the line totals, where each line total is the item's unit price multiplied by its quantity."
+    },
+    {
+      "id": "add-to-cart:C2",
+      "ordinal": 2,
+      "text": "The Tax equals 10% of the Subtotal, rounded to the nearest cent — it must not be zero or a different proportion."
+    },
+    {
+      "id": "add-to-cart:C3",
+      "ordinal": 3,
+      "text": "The Total equals the Subtotal plus the Tax."
+    }
+  ]
+}

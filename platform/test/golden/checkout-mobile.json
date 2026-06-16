@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0",
+  "id": "checkout-mobile",
+  "name": "Complete checkout at a mobile viewport",
+  "entry": "/login",
+  "viewport": "mobile",
+  "tags": [
+    "checkout",
+    "mobile"
+  ],
+  "steps": [
+    {
+      "id": "checkout-mobile:S1",
+      "ordinal": 1,
+      "text": "Sign in as \"alice\" with password \"password123\"."
+    },
+    {
+      "id": "checkout-mobile:S2",
+      "ordinal": 2,
+      "text": "Add the \"Desk Lamp\" twice and the \"Coffee Mug\" once."
+    },
+    {
+      "id": "checkout-mobile:S3",
+      "ordinal": 3,
+      "text": "Proceed to checkout."
+    },
+    {
+      "id": "checkout-mobile:S4",
+      "ordinal": 4,
+      "text": "Place the order."
+    }
+  ],
+  "criteria": [
+    {
+      "id": "checkout-mobile:C1",
+      "ordinal": 1,
+      "text": "At this mobile viewport the place-order control is actionable and placing the order succeeds: the user reaches an order-confirmation page for a real, newly created order.",
+      "after": "checkout-mobile:S4"
+    }
+  ]
+}
