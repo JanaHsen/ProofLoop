@@ -486,25 +486,25 @@ self-certify.
 
 ## Exit Checklist (the gate to Phase 2)
 
-- [ ] `platform/` exists as its own package (`package.json` + `tsconfig.json`), independent of
+- [x] `platform/` exists as its own package (`package.json` + `tsconfig.json`), independent of
   `app/`, with `node:test` wired via `ts-node` and a green test run. No root configs added.
-- [ ] `fixtures/flows/FORMAT.md` documents the grammar: front-matter (unknown key ⇒ error),
+- [x] `fixtures/flows/FORMAT.md` documents the grammar: front-matter (unknown key ⇒ error),
   `Steps`, `Acceptance Criteria` (**≥1 mandatory**), optional `(after step N)`, domain-agnostic.
-- [ ] `FlowPlan` schema implemented with the forward-contract block (verdict space incl.
+- [x] `FlowPlan` schema implemented with the forward-contract block (verdict space incl.
   ERROR-under-INCONCLUSIVE; action≠outcome; evidence-join-by-criterion-ID; runtime-record ≠
   FlowPlan).
-- [ ] Deterministic structural parser: verbatim text preservation; deterministic positional
+- [x] Deterministic structural parser: verbatim text preservation; deterministic positional
   namespaced IDs (no UUID/timestamp/random); fail-loud validation incl. the zero-criteria
   error; `parse` CLI emits stable-ordered JSON.
-- [ ] Five canonical flows authored at `fixtures/flows/*.flow.md` against the verified app;
+- [x] Five canonical flows authored at `fixtures/flows/*.flow.md` against the verified app;
   human-confirmed (creds, products, $58.97/$5.90/$64.87, entry paths, outcomes).
-- [ ] Tests green: golden per flow, criteria-intact, determinism (re-parse identical),
+- [x] Tests green: golden per flow, criteria-intact, determinism (re-parse identical),
   negatives (no-criteria / bad-viewport / bad-after / unknown-key all throw).
-- [ ] `fixtures/flow-coverage.md` maps flows→bugs + `detection_requires`; BUG-006 recorded as
+- [x] `fixtures/flow-coverage.md` maps flows→bugs + `detection_requires`; BUG-006 recorded as
   the blind spot; mutations noted as self-heal targets; lives outside `fixtures/flows/`.
-- [ ] All five flows parse into structured plans with acceptance criteria intact (the
+- [x] All five flows parse into structured plans with acceptance criteria intact (the
   Done-when — and ≥2 was the floor; we hit five to satisfy D7).
-- [ ] No bug ids, selectors, or source references in any `*.flow.md`.
+- [x] No bug ids, selectors, or source references in any `*.flow.md`.
 
 ---
 

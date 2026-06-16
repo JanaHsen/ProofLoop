@@ -15,7 +15,7 @@ Each phase file is written to be executed by Claude Code:
 | Phase | File | Title | Status |
 |---|---|---|---|
 | 0 | `00-foundations.md` | Foundations & Ground Truth | ✅ done (tags `v0-clean`, `v0-ground-truth`) |
-| 1 | `01-...` | Natural-Language Flow Definition | ⬜ not written yet |
+| 1 | `01-flow-definition.md` | Natural-Language Flow Definition | ✅ done |
 | 2 | `02-...` | Execution Engine: Snapshot-Then-Act | ⬜ not written yet |
 | 3 | `03-...` | Outcome Verification & Self-Healing | ⬜ not written yet |
 | 4 | `04-...` | Smart Summaries / Reporting | ⬜ not written yet |
