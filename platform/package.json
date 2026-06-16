@@ -1,0 +1,16 @@
+{
+  "name": "proofloop-platform",
+  "private": true,
+  "version": "0.0.0",
+  "description": "ProofLoop platform — the intent-driven tester (parser, engine, verifier, reporter). Its own package, independent of app/; never imports SUT source (black-box boundary).",
+  "scripts": {
+    "test": "node --require ts-node/register/transpile-only --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "parse": "ts-node --transpile-only src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
