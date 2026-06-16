@@ -226,14 +226,14 @@ of it now.
 *Next depends on it:* every later phase builds inside `platform/`; the black-box boundary is
 enforced by `platform/` being a package that cannot reach `app/` source.
 
-- [ ] Create `platform/package.json` (npm) and `platform/tsconfig.json`, **independent of
+- [x] Create `platform/package.json` (npm) and `platform/tsconfig.json`, **independent of
   `app/`** (they share no code). Match the app's conventions: TypeScript 5.x, CommonJS,
   `strict: true`, `ts-node`. Do **not** import anything from `app/`.
-- [ ] Wire the test runner as **Node's built-in `node:test`** via `ts-node/register`. No
+- [x] Wire the test runner as **Node's built-in `node:test`** via `ts-node/register`. No
   Vitest, no Jest, no extra test dependency. Add a `test` script; confirm it discovers
   `*.test.ts` files. Land one trivial passing test to prove the harness runs green.
-- [ ] Add a `parse` script (CLI entry, filled in Task 4) — placeholder is fine here.
-- [ ] Confirm `platform/` paths match `../CLAUDE.md`. Do not add a root-level
+- [x] Add a `parse` script (CLI entry, filled in Task 4) — placeholder is fine here.
+- [x] Confirm `platform/` paths match `../CLAUDE.md`. Do not add a root-level
   `package.json`/`tsconfig` — keep `app/` and `platform/` as two independent packages.
 
 ✅ **COMMIT:** `chore(platform): bootstrap platform package + node:test runner`
@@ -242,7 +242,7 @@ enforced by `platform/` being a package that cannot reach `app/` source.
 *Serves:* the human-facing contract a non-engineer writes against.
 *Next depends on it:* the schema and parser implement exactly this grammar.
 
-- [ ] Author `fixtures/flows/FORMAT.md` documenting the grammar exactly as in **The flow
+- [x] Author `fixtures/flows/FORMAT.md` documenting the grammar exactly as in **The flow
   file format** above: front-matter table (with "unknown key ⇒ error"), `## Steps`,
   `## Acceptance Criteria`, the optional `(after step N)` suffix, and the rule that **≥1
   criterion is mandatory**. State plainly that step/criterion text is plain English, never
@@ -254,8 +254,8 @@ enforced by `platform/` being a package that cannot reach `app/` source.
 *Serves:* the contract Phase 2 consumes and the join surface Phases 3/4/7 extend.
 *Next depends on it:* the parser produces exactly this shape.
 
-- [ ] Implement the `FlowPlan` / `FlowStep` / `FlowCriterion` types under `platform/src/`.
-- [ ] Add the **Forward contract** block as comments (verdict space incl. ERROR-under-
+- [x] Implement the `FlowPlan` / `FlowStep` / `FlowCriterion` types under `platform/src/`.
+- [x] Add the **Forward contract** block as comments (verdict space incl. ERROR-under-
   INCONCLUSIVE; action≠outcome; evidence-join-by-criterion-ID; runtime-record-is-not-
   FlowPlan). Build none of that behavior.
 
@@ -265,22 +265,22 @@ enforced by `platform/` being a package that cannot reach `app/` source.
 *Serves:* the core deliverable — flow file → structured plan.
 *Next depends on it:* the tests and the Done-when both run this.
 
-- [ ] Parse the front-matter with **`js-yaml`** (add `js-yaml` + `@types/js-yaml` to
+- [x] Parse the front-matter with **`js-yaml`** (add `js-yaml` + `@types/js-yaml` to
   `platform/` deps). Load it in a safe mode (`yaml.load`, no custom types). Validate the result
   against the fixed schema and **reject unknown keys** — js-yaml will happily accept them, so
   the unknown-key check is yours to enforce, not the library's.
-- [ ] Extract `## Steps` (ordered list, ≥1) and `## Acceptance Criteria` (list, ≥1),
+- [x] Extract `## Steps` (ordered list, ≥1) and `## Acceptance Criteria` (list, ≥1),
   preserving each item's text **verbatim**. Strip and record the optional `(after step N)`
   suffix on criteria; `N` must reference an existing step or it's an error.
-- [ ] Assign IDs deterministically: `<flowId>:S<ordinal>` and `<flowId>:C<ordinal>`, where
+- [x] Assign IDs deterministically: `<flowId>:S<ordinal>` and `<flowId>:C<ordinal>`, where
   `flowId` = basename minus `.flow.md`. **No** UUIDs/timestamps/random.
-- [ ] Validation, all fail-loud with a specific message: missing `name`; unknown front-matter
+- [x] Validation, all fail-loud with a specific message: missing `name`; unknown front-matter
   key; `viewport` not in {desktop, mobile}; missing/empty `Steps`; **missing/empty
   `Acceptance Criteria`**; `(after step N)` referencing a non-existent step; file not named
   `*.flow.md`.
-- [ ] The parser performs **no** interpretation of step/criterion meaning beyond extracting
+- [x] The parser performs **no** interpretation of step/criterion meaning beyond extracting
   the after-suffix.
-- [ ] CLI: `npm run parse -- <path>` prints the `FlowPlan` as JSON with **stable key order**
+- [x] CLI: `npm run parse -- <path>` prints the `FlowPlan` as JSON with **stable key order**
   and 2-space indent (diffable, the basis for golden tests).
 
 ✅ **COMMIT:** `feat(platform): deterministic *.flow.md parser + parse CLI`
@@ -393,7 +393,7 @@ tags: [form, validation]
 - The submission with a negative amount of -5 is rejected as invalid and is NOT accepted, even though the name and email are valid. (after step 2)
 ```
 
-- [ ] Create all five files exactly as above.
+- [x] Create all five files exactly as above.
 
 🚦 **HUMAN GATE:** the human confirms, against the running app, that the creds, product
 names, the $58.97/$5.90/$64.87 figures, the `entry` paths (`/login`, `/form`), and the
@@ -406,15 +406,15 @@ self-certify.
 *Serves:* proves the Done-when; locks parser behavior against regression.
 *Next depends on it:* Phase 2 builds on a parser whose output shape is pinned.
 
-- [ ] **Golden:** parse each of the five flows; compare to a committed expected JSON under
+- [x] **Golden:** parse each of the five flows; compare to a committed expected JSON under
   `platform/test/golden/`. Generate the goldens from the parser, eyeball them for
   correctness, then commit.
-- [ ] **Criteria-intact (the Done-when):** assert each parsed criterion's `text` equals the
+- [x] **Criteria-intact (the Done-when):** assert each parsed criterion's `text` equals the
   source line verbatim (minus a stripped `(after step N)`), and that `after` resolved to the
   right step id — proven on at least the checkout persistence criterion.
-- [ ] **Determinism:** parse the same file twice and assert the two `FlowPlan`s are identical
+- [x] **Determinism:** parse the same file twice and assert the two `FlowPlan`s are identical
   (deep-equal **and** identical serialized bytes). This is the CI-stability guard.
-- [ ] **Negative (use throwaway fixtures under `platform/test/fixtures/`, NOT
+- [x] **Negative (use throwaway fixtures under `platform/test/fixtures/`, NOT
   `fixtures/flows/`):** a flow missing `## Acceptance Criteria` ⇒ throws; `viewport: tablet`
   ⇒ throws; `(after step 9)` with no step 9 ⇒ throws; an unknown front-matter key ⇒ throws.
 
@@ -425,7 +425,7 @@ self-certify.
 truth into the tester's inputs.
 *Next depends on it:* Phase 7 scores against this mapping.
 
-- [ ] Author `fixtures/flow-coverage.md` (next to `bug-ledger.yaml`, **not** in
+- [x] Author `fixtures/flow-coverage.md` (next to `bug-ledger.yaml`, **not** in
   `fixtures/flows/`). State at the top that this is architect/ground-truth documentation and
   is **never** handed to the tester. Map each flow to the defects its criteria can surface and
   the `detection_requires` it satisfies:
@@ -438,13 +438,13 @@ truth into the tester's inputs.
   | `checkout-mobile` | BUG-007 (place-order actionable at ≤480px) | BUG-007: mobile viewport |
   | `form` | BUG-003 (negative amount rejected) | BUG-003: attempt an invalid non-positive amount |
 
-- [ ] Record explicitly: **BUG-006 has no flow** — it is the documented visual blind spot
+- [x] Record explicitly: **BUG-006 has no flow** — it is the documented visual blind spot
   (`PASS-known-blind-spot`); an outcome-based check "the name is displayed" passes while the
   layout is broken. Do not invent a flow that pretends to catch it.
-- [ ] Record that **MUT-001/002/003 get no flows of their own**: the five flows above,
+- [x] Record that **MUT-001/002/003 get no flows of their own**: the five flows above,
   written intent-first, must still PASS under each mutation. That is the Phase 3 self-heal
   test, not new input.
-- [ ] Record the **BUG-007 ERROR-vs-FAIL note** for Phase 3: failure to click the place-order
+- [x] Record the **BUG-007 ERROR-vs-FAIL note** for Phase 3: failure to click the place-order
   control at mobile is a behavior FAIL (the control is actionable at desktop), not an infra
   ERROR.
 
@@ -453,10 +453,10 @@ truth into the tester's inputs.
 ### Task 8 — Validation pass (this IS the exit criterion)
 *Serves:* proves the parser turns real flow files into structured plans with criteria intact.
 
-- [ ] Run `npm run parse` on all five canonical flows; confirm each emits a `FlowPlan` with
+- [x] Run `npm run parse` on all five canonical flows; confirm each emits a `FlowPlan` with
   every step and **every acceptance criterion present and verbatim**, `viewport` correct
   (`mobile` on `checkout-mobile`), and `after` associations resolved.
-- [ ] Confirm the full test suite is green.
+- [x] Confirm the full test suite is green.
 
 🚦 **HUMAN GATE:** the human reviews the five emitted plans (criteria intact, mobile viewport
 set, persistence criterion pinned to the revisit step) and signs off Phase 1 complete. Do not
