@@ -6,6 +6,7 @@ import * as path from "node:path";
 
 import { PlaywrightMcpClient } from "../src/mcp/client";
 import { REQUIRED_TOOLS, isCoordinateTool } from "../src/mcp/tools";
+import { validateRef, type ValidatedRef } from "../src/mcp/snapshot";
 
 // LIVE browser bring-up for the MCP client. Launches a real headed Chromium, so it
 // is OFF by default (keeps `npm test` fast + deterministic). Run it with:
@@ -41,22 +42,29 @@ test("live MCP client: launch → discover → snapshot → act → teardown", {
     const snap = await client.snapshot();
     assert.ok(snap.refs.size >= 3, "snapshot returned element refs");
 
-    const find = (role: string, name: string) =>
-      snap.elements.find((e) => e.role === role && e.name === name)?.ref;
-    const userRef = find("textbox", "Username");
-    const passRef = find("textbox", "Password");
-    const btnRef = find("button", "Sign in");
-    assert.ok(userRef && passRef && btnRef, "located form controls by intent");
+    // locate controls by intent, then validate each ref against the live snapshot —
+    // the only way to obtain a ValidatedRef the action methods accept.
+    const vref = (role: string, name: string): ValidatedRef => {
+      const ref = snap.elements.find((e) => e.role === role && e.name === name)?.ref;
+      assert.ok(ref, `located ${role} "${name}"`);
+      const v = validateRef(snap, ref!);
+      assert.ok(v.valid, "ref validates against the live snapshot");
+      return (v as Extract<typeof v, { valid: true }>).ref;
+    };
 
-    // element-targeted actions resolve from the live snapshot's refs.
-    const typed = await client.typeRef(userRef!, "Username field", "alice");
+    const typed = await client.typeRef(vref("textbox", "Username"), "Username field", "alice");
     assert.equal(typed.isError, false);
-    await client.typeRef(passRef!, "Password field", "secret-123");
-    await client.clickRef(btnRef!, "Sign in button");
+    await client.typeRef(vref("textbox", "Password"), "Password field", "secret-123");
+    await client.clickRef(vref("button", "Sign in"), "Sign in button");
 
-    // the ref-token guard refuses a CSS selector reaching MCP (the D14 hole).
+    // a forged brand (model text cast past the type) is still caught at runtime.
     await assert.rejects(
-      () => client.typeRef("#username", "selector attempt", "x"),
+      () =>
+        client.typeRef(
+          "#username" as unknown as ValidatedRef,
+          "selector attempt",
+          "x",
+        ),
       /not a snapshot ref token/,
     );
   } finally {

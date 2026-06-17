@@ -50,6 +50,7 @@ import {
 } from "./tools";
 import {
   ParsedSnapshot,
+  ValidatedRef,
   extractSnapshotFileLink,
   extractYamlBlock,
   isRefToken,
@@ -296,13 +297,13 @@ export class PlaywrightMcpClient {
 
   // --- element-targeted actions (D15: click | type) ------------------------------
   //
-  // These assume the loop has already validated `ref` against the CURRENT snapshot
-  // (refValidatedAgainstSnapshot is computed by the loop, never here). As a second
-  // layer, they refuse a target that is not even shaped like a ref token, so a CSS
-  // selector can never reach MCP through this path (the `target` param would accept
-  // one — that is the D14 hole this guards).
+  // `target` is HARNESS-ONLY and sourced exclusively from a ValidatedRef — the brand
+  // produced only by validateRef() against a live snapshot. The type system forbids
+  // passing raw model text here, which structurally seals the D14 hole (`target`
+  // would otherwise accept a selector). The isRefToken assert is a runtime backstop
+  // against a forged brand; it must never be the only line of defense.
 
-  async clickRef(ref: string, element: string): Promise<ToolResult> {
+  async clickRef(ref: ValidatedRef, element: string): Promise<ToolResult> {
     this.assertRefToken(ref);
     return this.callToolRaw(
       TOOL.click,
@@ -312,7 +313,7 @@ export class PlaywrightMcpClient {
   }
 
   async typeRef(
-    ref: string,
+    ref: ValidatedRef,
     element: string,
     text: string,
     submit = false,

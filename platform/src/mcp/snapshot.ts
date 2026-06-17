@@ -127,3 +127,48 @@ export function parseSnapshot(yaml: string, resultText = ""): ParsedSnapshot {
     ...extractPageInfo(resultText),
   };
 }
+
+// --- the one-way ref → target seal (D14) ------------------------------------------
+//
+// A `ValidatedRef` is a ref string that has PROVABLY been checked against a specific
+// snapshot. It is a branded type: there is exactly one way to obtain one — validateRef
+// below — and the MCP client only ever turns a ValidatedRef into a `target`. Because
+// the brand cannot be forged, a future edit cannot accidentally route model free-text
+// into `target` (the param that would otherwise accept a raw selector). The discipline
+// is enforced by the type system, not by convention.
+
+declare const validatedRefBrand: unique symbol;
+export type ValidatedRef = string & { readonly [validatedRefBrand]: true };
+
+export type RefRejectReason = "not_a_ref_token" | "not_in_snapshot";
+
+export type RefValidation =
+  | { valid: true; ref: ValidatedRef; validatedBy: "harness" }
+  | { valid: false; reason: RefRejectReason; detail: string };
+
+/**
+ * Validate a model-proposed ref against THIS snapshot — the sole producer of a
+ * ValidatedRef. `validatedBy` is always "harness"; it is never read from the model
+ * (the snapshot→ref→action audit chain depends on that). Rejects anything that is not
+ * an `eN` token, or a token not present in the snapshot (stale/hallucinated).
+ */
+export function validateRef(
+  snapshot: ParsedSnapshot,
+  modelRef: string,
+): RefValidation {
+  if (!isRefToken(modelRef)) {
+    return {
+      valid: false,
+      reason: "not_a_ref_token",
+      detail: `"${modelRef}" is not an eN snapshot ref token`,
+    };
+  }
+  if (!snapshot.refs.has(modelRef)) {
+    return {
+      valid: false,
+      reason: "not_in_snapshot",
+      detail: `ref "${modelRef}" is not present in the current snapshot (${snapshot.digest})`,
+    };
+  }
+  return { valid: true, ref: modelRef as ValidatedRef, validatedBy: "harness" };
+}

@@ -249,22 +249,36 @@ capture fresh snapshot
    → repeat until step_complete, blocked, or a guard trips
 ```
 
-- [ ] Define `AllowedElementAction` = `{ click, type }` and explicitly prohibit arbitrary
-  selector strings.
-- [ ] Define the guards (all of them): max actions/step; max actions/flow; max LLM
+- [x] Define `AllowedElementAction` = `{ click, type }` and explicitly prohibit arbitrary
+  selector strings. *(`mcp/tools.ts`; `StepDecision` in `engine/protocol.ts`. The one-way
+  ref→target seal is structural: `ValidatedRef` (branded, sole producer `validateRef`) is
+  the only thing the client turns into a `target`, so model free-text can never reach it.)*
+- [x] Define the guards (all of them): max actions/step; max actions/flow; max LLM
   calls/step; max LLM calls/flow; wall-clock timeout; prompt-token ceiling;
   completion-token ceiling; cost ceiling; repeated-action detection; no-progress detection
   (e.g. snapshot digest unchanged after an action that claimed progress); cancellation
-  handling. Pick concrete starting values; they are tunable, not sacred.
-- [ ] Define the invalid-response policy: an invalid model response gets **at most one
+  handling. Pick concrete starting values; they are tunable, not sacred. *(`engine/guards.ts`
+  `DEFAULT_GUARDS` + `GuardTracker`. repeated-action + no-progress are MERGED into one
+  digest-keyed guard so "add twice" can't false-trip; the no-progress key normalizes
+  volatile bits (refs/active/cursor) and is separate from the audit digest. Cost/token
+  ceilings flagged PROVISIONAL + kept generous (cost $5) so the gate flows can't false-trip;
+  reconciled at Task 4/5.)*
+- [x] Define the invalid-response policy: an invalid model response gets **at most one
   bounded correction attempt**. For an invalid reference specifically: (1) do not send the
   action to MCP; (2) record the rejected decision; (3) record an `INVALID_SNAPSHOT_REF`
   error; (4) allow at most one correction; (5) capture a fresh snapshot before retrying;
-  (6) stop with an execution error if the correction also fails.
+  (6) stop with an execution error if the correction also fails. *(`engine/protocol.ts`:
+  `MAX_CORRECTIONS_PER_DECISION=1`, `INVALID_SNAPSHOT_REF`, `buildCorrectionNotice` — the
+  single correction is INFORMED (fresh snapshot + what was wrong + available refs), not a
+  blind re-roll.)*
 
 🚦 **HUMAN GATE:** the human reviews and approves the decision schema, allowed actions,
 reference-validation rule, retry policy, and guard values **before** the real LLM is
-connected.
+connected. ✅ *APPROVED (with refinements folded in): one-way ref→target discipline made
+structural; informed single correction; merged digest-keyed no-progress with volatile
+normalization; enum-of-current-refs kept as a steering aid with harness validation
+authoritative; cost/token ceilings provisional pending Task 4/5. Guard numbers approved as
+starting values.*
 
 ✅ **COMMIT:** `feat(platform): execution protocol + bounded guard contract`
 
