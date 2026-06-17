@@ -6,9 +6,13 @@
   "scripts": {
     "test": "node --require ts-node/register/transpile-only --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "parse": "ts-node --transpile-only src/cli.ts"
+    "parse": "ts-node --transpile-only src/cli.ts",
+    "run": "node -e \"console.error('proofloop run CLI is wired in Phase 2 Task 5'); process.exit(2)\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.104.2",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@playwright/mcp": "0.0.76",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {

@@ -48,6 +48,7 @@ proofloop/
 ├── .env.example          # documents every env var the project will ever need
 ├── app/                  # the System Under Test (SUT) — the minimal app we control
 ├── platform/             # the ProofLoop tester (engine, parser, verifier, reporter) — built Phases 1–6
+│   └── runs/             # generated run artifacts, one dir per runId — contents gitignored (Phase 2+)
 ├── fixtures/
 │   ├── bug-ledger.yaml   # GROUND TRUTH: seeded bugs + structure mutations + expected verdicts
 │   └── flows/            # *.flow.md — plain-English flow definitions (Phase 1+)

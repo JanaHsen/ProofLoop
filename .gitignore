@@ -13,7 +13,13 @@ build/
 out/
 
 # Run artifacts (logs, traces, videos, reports) — generated, not source
-runs/
+# platform/runs/ holds generated run subdirectories (one per runId). Ignore its
+# generated contents, but keep the committed .gitkeep + README.md tracked. (Scope the
+# pattern to the dir's contents — a bare `runs/` would exclude the directory itself,
+# and Git can't re-include a file whose parent dir is excluded.)
+/platform/runs/*
+!/platform/runs/.gitkeep
+!/platform/runs/README.md
 artifacts/
 *.log
 playwright-report/
