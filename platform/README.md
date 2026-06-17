@@ -39,6 +39,7 @@ is handed only that URL.
 | Script | What it does |
 |---|---|
 | `npm test` | run the platform test suite (`node:test` + ts-node transpile-only) |
+| `PROOFLOOP_LIVE_MCP=1 npm test` | also run the live headed MCP browser bring-up (off by default; launches real Chromium) |
 | `npm run typecheck` | full TypeScript type-check (tests run transpile-only, so this is the type gate) |
 | `npm run parse -- <file.flow.md>` | print a parsed `FlowPlan` as canonical JSON |
 | `npm run run` | execute a flow (wired in Phase 2 Task 5; placeholder until then) |
