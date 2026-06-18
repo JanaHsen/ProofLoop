@@ -38,6 +38,8 @@ export interface DecisionContext {
   snapshot: ParsedSnapshot;
   /** Bounded summary of actions already attempted in THIS step. */
   attemptsInStep: AttemptSummary[];
+  /** Harness-computed fact: the page changed since the last action this step. */
+  pageChangedSinceAction?: boolean;
   /** Present only on the single informed correction re-ask. */
   correction?: DecisionFailure;
 }
@@ -55,17 +57,36 @@ export interface Decider {
   decide(ctx: DecisionContext): Promise<DeciderResult>;
 }
 
-const SYSTEM_PROMPT = [
+export const SYSTEM_PROMPT = [
   "You drive a real web browser to carry out ONE step of a test flow at a time.",
-  "You are given the current step in plain English, the current page, and the",
-  "interactive elements from a FRESH accessibility snapshot (each with a stable ref",
-  "like e5). Call the decide_next_step tool with exactly one of:",
+  "You are given the current step in plain English, the current page, the interactive",
+  "elements from a FRESH accessibility snapshot (each with a stable ref like e5), and a",
+  "summary of what you have already attempted in this step. Call the decide_next_step",
+  "tool with exactly one of:",
   '  - action "click": click the element with the given ref.',
   '  - action "type": type the given value into the element with the given ref.',
   "  - step_complete: the step's requested action has been performed and the page",
-  "    responded. This means an action happened and a response was observed — it does",
-  "    NOT mean the result was correct. Do not judge correctness.",
-  "  - blocked: the step genuinely cannot proceed (no suitable element exists).",
+  "    responded. A changed or navigated page — or the controls you just used no longer",
+  "    being present because the action already took effect — IS that response. If the",
+  '    "Actions already attempted" list shows the step\'s action was done and the page',
+  "    has since changed, return step_complete. This only means an action happened and a",
+  "    response was observed; it does NOT mean the result was correct. Do not judge",
+  "    correctness — that is not your job.",
+  "  - blocked: ONLY when the step's action genuinely cannot be performed — the required",
+  "    control does not exist on the page and never appeared. Do NOT use blocked merely",
+  "    because the form/controls are gone after you already acted; that is step_complete.",
+  "How to decide step_complete vs blocked:",
+  "  1. Look at the attempted-actions list and whether the page changed since.",
+  "  2. If the step's action is already listed there AND the page has changed or",
+  "     navigated since (new URL, or the controls you used are gone), the action took",
+  "     effect — return step_complete.",
+  "  3. Choose blocked ONLY if you could not perform the action and the required control",
+  "     is not present and never appeared.",
+  "General principle (not tied to any specific step): when an action you took produces",
+  "the expected page change, consider whether the step is now complete. If you perform",
+  "the step's action and the next snapshot is a changed or different page where the",
+  "control you used is no longer present, the action took effect — return step_complete,",
+  "not blocked.",
   "Rules: the ref MUST be one of the refs in the current snapshot — never invent a ref,",
   "a CSS selector, or an element that is not listed. Choose elements by their role and",
   "accessible name (intent), not by position. Do one atomic action per call; you receive",
@@ -94,6 +115,10 @@ function buildUserMessage(ctx: DecisionContext): string {
     }
   } else {
     lines.push("No actions attempted yet in this step.");
+  }
+  if (ctx.pageChangedSinceAction) {
+    lines.push("");
+    lines.push("Note: the page changed since your last action.");
   }
   if (ctx.correction) {
     lines.push("");

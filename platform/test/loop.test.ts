@@ -131,8 +131,8 @@ test("happy path: click → step_complete completes and the audit chain verifies
 test("redaction: typed password value is redacted in events AND stored snapshots, but typed for real", async () => {
   const decider = new MockDecider((_c, call) =>
     call === 0
-      ? { kind: "action", action: "type", ref: "e7", value: "password123", rationale: "enter password" }
-      : { kind: "step_complete", rationale: "entered" },
+      ? { kind: "action", action: "type", ref: "e7", value: "password123", rationale: 'typing "password123" now' }
+      : { kind: "step_complete", rationale: "entered password123 successfully" },
   );
   // first snapshot has no value (field empty); after typing, the value shows up
   const actuator = new MockActuator((i) => (i === 0 ? loginSnap() : snapWithPw()));
@@ -141,10 +141,15 @@ test("redaction: typed password value is redacted in events AND stored snapshots
     // the real value reaches the browser
     assert.deepEqual(actuator.types.map((t) => t.text), ["password123"]);
     // but the logged decision + action values are redacted
-    const decision = (types(out.events, "llm_decision")[0] as { decision: { value?: unknown } }).decision;
+    const decision = (types(out.events, "llm_decision")[0] as { decision: { value?: unknown; rationale: string } }).decision;
     assert.deepEqual(decision.value, { value: "[REDACTED]", valueLength: 11, sensitive: true });
     const action = types(out.events, "action")[0] as { value?: unknown };
     assert.deepEqual(action.value, { value: "[REDACTED]", valueLength: 11, sensitive: true });
+    // the model's rationale must NOT leak the secret in clear text
+    for (const ev of types(out.events, "llm_decision") as { decision: { rationale?: string } }[]) {
+      assert.ok(!(ev.decision.rationale ?? "").includes("password123"), "rationale must be scrubbed");
+    }
+    assert.ok(decision.rationale.includes("[REDACTED]"));
     // snapshots stored AFTER the value is known are scrubbed on disk
     const after = types(out.events, "snapshot").filter((e, idx) => idx > 0) as { path: string }[];
     for (const ev of after) {

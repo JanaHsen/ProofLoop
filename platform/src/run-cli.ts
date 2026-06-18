@@ -7,6 +7,8 @@
 // only given BASE_URL + the flow file — it never reads app/ source.
 
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import { parseFlowFile, FlowParseError } from "./parser";
@@ -49,31 +51,38 @@ async function main(argv: string[]): Promise<number> {
     apiKey: cfg.anthropicApiKey,
     model: cfg.model,
   });
+  // The MCP server writes its own (unmasked) scratch artifacts to its output dir.
+  // Keep that OUTSIDE the run dir so the run dir holds only our masked artifacts;
+  // delete the scratch on exit.
+  const mcpScratch = path.join(os.tmpdir(), `proofloop-mcp-${runId}`);
   const actuator = new PlaywrightMcpClient({
     viewport: plan.viewport,
-    outputDir: runDir,
+    outputDir: mcpScratch,
   });
 
   process.stdout.write(
     `▶ flow=${plan.id} model=${cfg.model} baseUrl=${cfg.baseUrl}\n  runId=${runId}\n`,
   );
-  const manifest = await runFlow({
-    plan,
-    baseUrl: cfg.baseUrl,
-    runId,
-    runsRoot,
-    model: cfg.model,
-    pricingConfigId: cfg.pricingConfigId,
-    decider,
-    actuator,
-  });
-
-  process.stdout.write(
-    `■ executionStatus=${manifest.executionStatus}  ` +
-      `actions=${manifest.totals.actionCount} ` +
-      `llmCost=$${manifest.totals.costUsd.toFixed(4)}\n  dir: ${runDir}\n`,
-  );
-  return manifest.executionStatus === "completed" ? 0 : 1;
+  try {
+    const manifest = await runFlow({
+      plan,
+      baseUrl: cfg.baseUrl,
+      runId,
+      runsRoot,
+      model: cfg.model,
+      pricingConfigId: cfg.pricingConfigId,
+      decider,
+      actuator,
+    });
+    process.stdout.write(
+      `■ executionStatus=${manifest.executionStatus}  ` +
+        `actions=${manifest.totals.actionCount} ` +
+        `llmCost=$${manifest.totals.costUsd.toFixed(4)}\n  dir: ${runDir}\n`,
+    );
+    return manifest.executionStatus === "completed" ? 0 : 1;
+  } finally {
+    fs.rmSync(mcpScratch, { recursive: true, force: true });
+  }
 }
 
 main(process.argv)

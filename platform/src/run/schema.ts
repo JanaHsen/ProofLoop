@@ -22,6 +22,11 @@ export function computePlanHash(plan: FlowPlan): string {
   );
 }
 
+/** `sha256:<hex>` of verbatim step text — logged instead of the text (may carry secrets). */
+export function hashStepText(text: string): string {
+  return "sha256:" + createHash("sha256").update(text, "utf8").digest("hex");
+}
+
 /**
  * Live runs only ever write `running → { completed | blocked | guard_tripped | error
  * | cancelled }`. `crashed` is NEVER self-written — a reader/recovery tool infers it
@@ -119,7 +124,12 @@ export interface StepStartEvent extends BaseRunEvent {
   type: "step_start";
   stepId: string;
   ordinal: number;
-  text: string;
+  /**
+   * sha256 of the verbatim step text — the run log does NOT store the instruction
+   * text itself (it can carry secret literals, e.g. a password). Exact wording stays
+   * recoverable from the FlowPlan via planHash + stepId.
+   */
+  stepTextHash: string;
 }
 
 export interface StepEndEvent extends BaseRunEvent {

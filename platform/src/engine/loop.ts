@@ -15,6 +15,7 @@ import type { FlowPlan } from "../flow-plan";
 import {
   ParsedSnapshot,
   ValidatedRef,
+  parseSnapshot,
   validateRef,
 } from "../mcp/snapshot";
 import type { ToolResult } from "../mcp/client";
@@ -34,9 +35,9 @@ import {
 } from "./guards";
 import type { AttemptSummary, Decider } from "./decider";
 import { RunLogger } from "../run/logger";
-import { computePlanHash, ExecutionStatus, LoggedDecision, LoggedValue, RunManifest } from "../run/schema";
+import { computePlanHash, ExecutionStatus, LoggedDecision, LoggedValue, RunManifest, hashStepText } from "../run/schema";
 import { computeCostUsd, loadPricing, ratesFor, usageTotals } from "../run/pricing";
-import { SensitivitySignal, isSensitive, redactValue } from "../run/redaction";
+import { SensitivitySignal, extractSecretLiterals, isSensitive, redactValuesInText } from "../run/redaction";
 
 /** The browser surface the loop drives. PlaywrightMcpClient satisfies it structurally. */
 export interface BrowserActuator {
@@ -91,7 +92,17 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
     guardsCfg,
     opts.now ? () => opts.now!().getTime() : undefined,
   );
-  const sensitiveValues = new Set<string>();
+  // Run-scoped secret set, seeded BEFORE the first snapshot from the flow's
+  // secret-bearing phrases (values adjacent to password/passcode/secret/token). Every
+  // artifact written under the run dir is masked against this set; only the in-flight
+  // model prompt (the step text) carries the real value, so the model can type it.
+  const sensitiveValues = new Set<string>(
+    extractSecretLiterals([
+      ...opts.plan.steps.map((s) => s.text),
+      ...opts.plan.criteria.map((c) => c.text),
+    ]),
+  );
+  const scrub = (s: string): string => redactValuesInText(s, [...sensitiveValues]);
   const entryUrl = joinUrl(opts.baseUrl, opts.plan.entry);
   let decisionSeq = 0;
 
@@ -117,12 +128,13 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
         type: "step_start",
         stepId: step.id,
         ordinal: step.ordinal,
-        text: step.text,
+        stepTextHash: hashStepText(step.text),
       });
 
       let correctionsUsed = 0;
       let pendingCorrection: DecisionFailure | undefined;
       let progressBaseline: string | null = null;
+      let lastActionKey: string | null = null;
 
       decisionLoop: while (true) {
         if (opts.signal?.aborted) guard.cancel();
@@ -134,9 +146,12 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
 
         let snap: ParsedSnapshot;
         try {
-          snap = await opts.actuator.snapshot();
+          // Mask ONCE at the capture point, before the snapshot forks into store /
+          // digest / send-to-model — all three consume the identical masked snapshot,
+          // so verifyAuditChain still passes (refs/roles/names untouched).
+          snap = maskSnapshot(await opts.actuator.snapshot(), [...sensitiveValues]);
         } catch (e) {
-          logger.append({ type: "error", code: "SNAPSHOT_FAILED", detail: errMsg(e), stepId: step.id });
+          logger.append({ type: "error", code: "SNAPSHOT_FAILED", detail: scrub(errMsg(e)), stepId: step.id });
           terminal = { status: "error" };
           break stepsLoop;
         }
@@ -150,23 +165,29 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           }
         }
 
+        // snap is already masked at capture; recordSnapshot stores it as-is.
         const { snapshotId, digest } = logger.recordSnapshot(
           snap,
           "pre_action",
-          [...sensitiveValues],
+          [],
           step.id,
         );
 
+        const pageChangedSinceAction =
+          attempts.length > 0 &&
+          lastActionKey !== null &&
+          progressKey(snap.yaml) !== lastActionKey;
         let res;
         try {
           res = await opts.decider.decide({
             step,
             snapshot: snap,
             attemptsInStep: attempts.slice(-8),
+            ...(pageChangedSinceAction ? { pageChangedSinceAction: true } : {}),
             ...(pendingCorrection ? { correction: pendingCorrection } : {}),
           });
         } catch (e) {
-          logger.append({ type: "error", code: "DECIDER_FAILED", detail: errMsg(e), stepId: step.id });
+          logger.append({ type: "error", code: "DECIDER_FAILED", detail: scrub(errMsg(e)), stepId: step.id });
           terminal = { status: "error" };
           break stepsLoop;
         }
@@ -185,14 +206,14 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
             costUsd,
             latencyMs: res.latencyMs,
           });
-          logger.append({ type: "error", code: "SCHEMA_INVALID", detail: parsed.error, decisionId, stepId: step.id });
+          logger.append({ type: "error", code: "SCHEMA_INVALID", detail: scrub(parsed.error), decisionId, stepId: step.id });
           if (correctionsUsed >= MAX_CORRECTIONS_PER_DECISION) {
             terminal = { status: "error" };
             break stepsLoop;
           }
           correctionsUsed += 1;
           pendingCorrection = { kind: "schema", detail: parsed.error };
-          logger.append({ type: "retry", ofDecisionId: decisionId, reason: `schema-invalid: ${parsed.error}`, stepId: step.id });
+          logger.append({ type: "retry", ofDecisionId: decisionId, reason: scrub(`schema-invalid: ${parsed.error}`), stepId: step.id });
           continue decisionLoop;
         }
 
@@ -200,12 +221,30 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
         const elem = decision.kind === "action" ? snap.elements.find((e) => e.ref === decision.ref) : undefined;
         const signal: SensitivitySignal = { accessibleName: elem?.name };
 
+        // Seed the sensitive set from a sensitive type value BEFORE logging, so the
+        // decision's own rationale (and all later rationale/reason/snapshots) are
+        // scrubbed of the secret — complementary to the literal seed and the
+        // structural password-field redaction.
+        if (
+          decision.kind === "action" &&
+          decision.action === "type" &&
+          decision.value &&
+          isSensitive(signal)
+        ) {
+          sensitiveValues.add(decision.value);
+        }
+
+        const loggedValue: LoggedValue | undefined =
+          decision.kind === "action" && decision.action === "type"
+            ? maskLoggedValue(decision.value ?? "", signal, sensitiveValues)
+            : undefined;
+
         logger.append({
           type: "llm_decision",
           decisionId,
           snapshotId,
           snapshotDigest: digest,
-          decision: toLoggedDecision(decision, signal),
+          decision: toLoggedDecision(decision, [...sensitiveValues], loggedValue),
           usage: res.usage,
           costUsd,
           latencyMs: res.latencyMs,
@@ -225,7 +264,6 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
 
         // kind === "action"
         const v = validateRef(snap, decision.ref);
-        const value = decision.action === "type" ? redactValue(decision.value ?? "", signal) : undefined;
         if (!v.valid) {
           logger.append({
             type: "action",
@@ -234,20 +272,20 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
             snapshotDigest: digest,
             ref: decision.ref,
             action: decision.action,
-            ...(value !== undefined ? { value } : {}),
+            ...(loggedValue !== undefined ? { value: loggedValue } : {}),
             refValidation: { valid: false, validatedBy: "harness", reason: v.reason },
             resolvedFrom: snapshotId,
             status: "rejected",
             stepId: step.id,
           });
-          logger.append({ type: "error", code: INVALID_SNAPSHOT_REF, detail: v.detail, decisionId, stepId: step.id });
+          logger.append({ type: "error", code: INVALID_SNAPSHOT_REF, detail: scrub(v.detail), decisionId, stepId: step.id });
           if (correctionsUsed >= MAX_CORRECTIONS_PER_DECISION) {
             terminal = { status: "error" };
             break stepsLoop;
           }
           correctionsUsed += 1;
           pendingCorrection = { kind: "invalid_ref", reason: v.reason, detail: v.detail, attemptedRef: decision.ref };
-          logger.append({ type: "retry", ofDecisionId: decisionId, reason: `invalid ref: ${v.detail}`, stepId: step.id });
+          logger.append({ type: "retry", ofDecisionId: decisionId, reason: scrub(`invalid ref: ${v.detail}`), stepId: step.id });
           continue decisionLoop;
         }
 
@@ -261,13 +299,12 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
         let result: ToolResult;
         try {
           if (decision.action === "type") {
-            if (isSensitive(signal)) sensitiveValues.add(decision.value ?? "");
             result = await opts.actuator.typeRef(v.ref, elementDesc, decision.value ?? "");
           } else {
             result = await opts.actuator.clickRef(v.ref, elementDesc);
           }
         } catch (e) {
-          logger.append({ type: "error", code: "ACTION_FAILED", detail: errMsg(e), decisionId, stepId: step.id });
+          logger.append({ type: "error", code: "ACTION_FAILED", detail: scrub(errMsg(e)), decisionId, stepId: step.id });
           terminal = { status: "error" };
           break stepsLoop;
         }
@@ -280,7 +317,7 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           snapshotDigest: digest,
           ref: decision.ref,
           action: decision.action,
-          ...(value !== undefined ? { value } : {}),
+          ...(loggedValue !== undefined ? { value: loggedValue } : {}),
           refValidation: { valid: true, validatedBy: "harness" },
           resolvedFrom: snapshotId,
           status: result.isError ? "failed" : "executed",
@@ -294,7 +331,9 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           ...(elem?.name ? { name: elem.name } : {}),
           ok: !result.isError,
         });
-        progressBaseline = progressKey(snap.yaml);
+        const actedKey = progressKey(snap.yaml);
+        progressBaseline = actedKey;
+        lastActionKey = actedKey;
         correctionsUsed = 0;
         pendingCorrection = undefined;
       } // decisionLoop
@@ -302,14 +341,14 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
 
     const status: FinalStatus = terminal ? terminal.status : "completed";
     if (terminal?.guardTrip) {
-      logger.append({ type: "guard_tripped", reason: terminal.guardTrip.reason, detail: terminal.guardTrip.detail });
+      logger.append({ type: "guard_tripped", reason: terminal.guardTrip.reason, detail: scrub(terminal.guardTrip.detail) });
     }
     // terminal snapshot (best effort) for criteria with no `after` (Phase 3)
     await captureSnapshot(opts.actuator, logger, "terminal", [...sensitiveValues]);
     logger.append({ type: "flow_end", executionStatus: status });
     return logger.finalize(status);
   } catch (e) {
-    safeAppend(logger, { type: "error", code: "EXECUTION_ERROR", detail: errMsg(e) });
+    safeAppend(logger, { type: "error", code: "EXECUTION_ERROR", detail: scrub(errMsg(e)) });
     safeAppend(logger, { type: "flow_end", executionStatus: "error" });
     return logger.finalize("error");
   } finally {
@@ -330,23 +369,59 @@ function mapTrip(trip: GuardTrip): Terminal {
 
 function toLoggedDecision(
   decision: StepDecision,
-  signal: SensitivitySignal,
+  sensitive: string[],
+  loggedValue: LoggedValue | undefined,
 ): LoggedDecision {
+  // Scrub the model's free text of any known sensitive typed values — the rationale
+  // can echo the secret even when the dedicated `value` field is redacted.
+  const scrub = (s: string): string => redactValuesInText(s, sensitive);
   if (decision.kind === "action") {
-    const value: LoggedValue | undefined =
-      decision.action === "type" ? redactValue(decision.value ?? "", signal) : undefined;
     return {
       kind: "action",
       action: decision.action,
       ref: decision.ref,
-      ...(value !== undefined ? { value } : {}),
-      rationale: decision.rationale,
+      ...(loggedValue !== undefined ? { value: loggedValue } : {}),
+      rationale: scrub(decision.rationale),
     };
   }
   if (decision.kind === "step_complete") {
-    return { kind: "step_complete", rationale: decision.rationale };
+    return { kind: "step_complete", rationale: scrub(decision.rationale) };
   }
-  return { kind: "blocked", reason: decision.reason };
+  return { kind: "blocked", reason: scrub(decision.reason) };
+}
+
+/**
+ * Redact a typed value for logging when it is sensitive — either structurally (the
+ * field is a password/sensitive field) or because it matches a run-scoped secret
+ * literal. Complementary to the snapshot/text masking.
+ */
+function maskLoggedValue(
+  value: string,
+  signal: SensitivitySignal,
+  sensitive: Set<string>,
+): LoggedValue {
+  return isSensitive(signal) || sensitive.has(value)
+    ? { value: "[REDACTED]", valueLength: value.length, sensitive: true }
+    : value;
+}
+
+/**
+ * Mask all run-scoped secret literals out of a snapshot ONCE, re-deriving refs,
+ * roles, names, and digest from the masked YAML. Refs/roles/names are untouched
+ * (secrets live in element content/values), so the audit chain still verifies.
+ */
+function maskSnapshot(snap: ParsedSnapshot, values: string[]): ParsedSnapshot {
+  if (values.length === 0) return snap;
+  const yaml = redactValuesInText(snap.yaml, values);
+  if (yaml === snap.yaml && !snap.pageUrl && !snap.pageTitle) return snap;
+  const reparsed = parseSnapshot(yaml);
+  const pageUrl = snap.pageUrl ? redactValuesInText(snap.pageUrl, values) : undefined;
+  const pageTitle = snap.pageTitle ? redactValuesInText(snap.pageTitle, values) : undefined;
+  return {
+    ...reparsed,
+    ...(pageUrl !== undefined ? { pageUrl } : {}),
+    ...(pageTitle !== undefined ? { pageTitle } : {}),
+  };
 }
 
 async function captureSnapshot(
@@ -357,8 +432,9 @@ async function captureSnapshot(
   stepId?: string,
 ): Promise<void> {
   try {
-    const snap = await actuator.snapshot();
-    logger.recordSnapshot(snap, kind, sensitiveValues, stepId);
+    // mask at capture (same as the main loop), then store the masked snapshot
+    const snap = maskSnapshot(await actuator.snapshot(), sensitiveValues);
+    logger.recordSnapshot(snap, kind, [], stepId);
   } catch {
     /* boundary/terminal snapshot is best-effort */
   }

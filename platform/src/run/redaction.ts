@@ -75,3 +75,27 @@ export function redactValuesInText(
   }
   return out;
 }
+
+/**
+ * Extract secret literals from flow text — ONLY values adjacent (case-insensitive)
+ * to a secret keyword (password | passcode | secret | token). Ordinary quoted values
+ * (usernames like "alice", product names, amounts) are deliberately NOT treated as
+ * secrets. When a value sits next to a secret keyword we include it (a miss leaks;
+ * the run-dir scan test is the backstop). The result seeds the run-scoped mask set
+ * BEFORE the first snapshot, so even page-displayed credentials are masked on disk.
+ */
+const SECRET_LITERAL_RE =
+  /\b(?:password|passcode|secret|token)\b[^"\n]*"([^"]+)"/gi;
+
+export function extractSecretLiterals(texts: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const t of texts) {
+    SECRET_LITERAL_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = SECRET_LITERAL_RE.exec(t)) !== null) {
+      const v = m[1].trim();
+      if (v) out.add(v);
+    }
+  }
+  return [...out];
+}
