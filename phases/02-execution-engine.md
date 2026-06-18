@@ -435,17 +435,28 @@ Wire the real Anthropic Messages API decision call (tool-use / schema-constraine
 `ANTHROPIC_API_KEY` from env, `model` from env and logged) into the approved loop. For
 each `FlowStep`:
 
-- [ ] (1) emit `step_start`; (2) capture a fresh snapshot; (3) store snapshot + digest;
+- [x] (1) emit `step_start`; (2) capture a fresh snapshot; (3) store snapshot + digest;
   (4) request one schema-constrained decision; (5) record raw token usage + latency;
   (6) schema-validate the response; (7) if an action, validate the ref against the
   **current** snapshot; (8) execute the validated action through MCP; (9) record decision,
   validation, action, result; (10) repeat from a fresh snapshot; (11) on `step_complete`,
   capture a step-boundary snapshot and emit `step_end`; (12) on `blocked`, guard trip, or
-  execution error, stop per the frozen execution-status rules.
-- [ ] After the final step: capture the terminal snapshot; emit `flow_end`; compute
-  totals; atomically finalize the manifest; close the context and MCP subprocess.
-- [ ] **Test every guard** using mocked model decisions or controlled fixtures. Guard
+  execution error, stop per the frozen execution-status rules. *(`engine/loop.ts` `runFlow`;
+  decider = `engine/decider.ts` (real Messages API tool-use, model `claude-sonnet-4-6` from
+  env, key from env, never logged). LLM is decider-only — harness does validateRef →
+  ValidatedRef → dispatch; model never sees `target`/MCP/secrets. `step_complete` = action
+  performed + response observed, never correctness. No verdict logic.)*
+- [x] After the final step: capture the terminal snapshot; emit `flow_end`; compute
+  totals; atomically finalize the manifest; close the context and MCP subprocess. *(terminal
+  snapshot best-effort; `flow_end` carries executionStatus; `finalize()` atomic; actuator
+  closed in `finally`.)*
+- [x] **Test every guard** using mocked model decisions or controlled fixtures. Guard
   tests must not require actually spending unbounded tokens/cost or hitting the live API.
+  *(`test/loop.test.ts`: mocked decider + actuator cover happy path, redaction in events +
+  stored snapshots, no-progress / action-cap / llm-call-cap / cancellation trips, invalid-
+  ref (correct-then-error + correct-then-recover), schema-invalid, blocked — all offline.
+  One env-gated live Sonnet smoke (`test/decider-live.test.ts`) confirmed the mock matches
+  the real tool-use + usage shape (incl. cache_creation breakdown) before trusting mocks.)*
 
 ✅ **COMMIT:** `feat(platform): harness-controlled snapshot-then-act execution loop`
 

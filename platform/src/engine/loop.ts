@@ -1,0 +1,394 @@
+/**
+ * The deterministic harness-controlled execution loop (Task 5, D13). The LLM proposes
+ * one decision; everything else here is deterministic: snapshot timing, schema
+ * validation, ref validation, dispatch, guards, logging, cleanup. This is what makes
+ * the Exit criterion provable from the logs.
+ *
+ * Per step: step_start → { fresh snapshot → one decision → schema-validate →
+ * validate ref against THIS snapshot → execute one allowed action → record → repeat }
+ * until step_complete / blocked / guard trip / execution error. step_complete means an
+ * action happened and a response was observed — NOT that the app behaved correctly.
+ * NO criterion evaluation, NO PASS/FAIL/INCONCLUSIVE, NO verdict logic lives here.
+ */
+
+import type { FlowPlan } from "../flow-plan";
+import {
+  ParsedSnapshot,
+  ValidatedRef,
+  validateRef,
+} from "../mcp/snapshot";
+import type { ToolResult } from "../mcp/client";
+import {
+  DecisionFailure,
+  INVALID_SNAPSHOT_REF,
+  MAX_CORRECTIONS_PER_DECISION,
+  StepDecision,
+  parseDecision,
+} from "./protocol";
+import {
+  DEFAULT_GUARDS,
+  GuardConfig,
+  GuardTracker,
+  GuardTrip,
+  progressKey,
+} from "./guards";
+import type { AttemptSummary, Decider } from "./decider";
+import { RunLogger } from "../run/logger";
+import { computePlanHash, ExecutionStatus, LoggedDecision, LoggedValue, RunManifest } from "../run/schema";
+import { computeCostUsd, loadPricing, ratesFor, usageTotals } from "../run/pricing";
+import { SensitivitySignal, isSensitive, redactValue } from "../run/redaction";
+
+/** The browser surface the loop drives. PlaywrightMcpClient satisfies it structurally. */
+export interface BrowserActuator {
+  launch(): Promise<void>;
+  navigate(url: string): Promise<void>;
+  snapshot(): Promise<ParsedSnapshot>;
+  clickRef(ref: ValidatedRef, element: string): Promise<ToolResult>;
+  typeRef(
+    ref: ValidatedRef,
+    element: string,
+    text: string,
+    submit?: boolean,
+  ): Promise<ToolResult>;
+  close(): Promise<void>;
+}
+
+export interface RunFlowOptions {
+  plan: FlowPlan;
+  baseUrl: string;
+  runId: string;
+  runsRoot: string;
+  model: string;
+  pricingConfigId: string;
+  decider: Decider;
+  actuator: BrowserActuator;
+  guards?: GuardConfig;
+  signal?: AbortSignal;
+  now?: () => Date;
+}
+
+type FinalStatus = Exclude<ExecutionStatus, "running" | "crashed">;
+
+interface Terminal {
+  status: FinalStatus;
+  guardTrip?: GuardTrip;
+}
+
+export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
+  const guardsCfg = opts.guards ?? DEFAULT_GUARDS;
+  const rates = ratesFor(loadPricing(opts.pricingConfigId), opts.model);
+  const planHash = computePlanHash(opts.plan);
+  const logger = new RunLogger({
+    runsRoot: opts.runsRoot,
+    runId: opts.runId,
+    flowId: opts.plan.id,
+    planHash,
+    model: opts.model,
+    pricingConfigId: opts.pricingConfigId,
+    ...(opts.now ? { now: opts.now } : {}),
+  });
+  const guard = new GuardTracker(
+    guardsCfg,
+    opts.now ? () => opts.now!().getTime() : undefined,
+  );
+  const sensitiveValues = new Set<string>();
+  const entryUrl = joinUrl(opts.baseUrl, opts.plan.entry);
+  let decisionSeq = 0;
+
+  try {
+    logger.append({
+      type: "flow_start",
+      flowId: opts.plan.id,
+      planHash,
+      model: opts.model,
+      entryUrl,
+    });
+    await opts.actuator.launch();
+    await opts.actuator.navigate(entryUrl);
+    guard.beginFlow();
+
+    let terminal: Terminal | null = null;
+    const attempts: AttemptSummary[] = [];
+
+    stepsLoop: for (const step of opts.plan.steps) {
+      guard.beginStep();
+      attempts.length = 0;
+      logger.append({
+        type: "step_start",
+        stepId: step.id,
+        ordinal: step.ordinal,
+        text: step.text,
+      });
+
+      let correctionsUsed = 0;
+      let pendingCorrection: DecisionFailure | undefined;
+      let progressBaseline: string | null = null;
+
+      decisionLoop: while (true) {
+        if (opts.signal?.aborted) guard.cancel();
+        const preTrip = guard.beforeDecision();
+        if (preTrip) {
+          terminal = mapTrip(preTrip);
+          break stepsLoop;
+        }
+
+        let snap: ParsedSnapshot;
+        try {
+          snap = await opts.actuator.snapshot();
+        } catch (e) {
+          logger.append({ type: "error", code: "SNAPSHOT_FAILED", detail: errMsg(e), stepId: step.id });
+          terminal = { status: "error" };
+          break stepsLoop;
+        }
+
+        if (progressBaseline !== null) {
+          const trip = guard.recordProgress(progressBaseline, progressKey(snap.yaml));
+          progressBaseline = null;
+          if (trip) {
+            terminal = mapTrip(trip);
+            break stepsLoop;
+          }
+        }
+
+        const { snapshotId, digest } = logger.recordSnapshot(
+          snap,
+          "pre_action",
+          [...sensitiveValues],
+          step.id,
+        );
+
+        let res;
+        try {
+          res = await opts.decider.decide({
+            step,
+            snapshot: snap,
+            attemptsInStep: attempts.slice(-8),
+            ...(pendingCorrection ? { correction: pendingCorrection } : {}),
+          });
+        } catch (e) {
+          logger.append({ type: "error", code: "DECIDER_FAILED", detail: errMsg(e), stepId: step.id });
+          terminal = { status: "error" };
+          break stepsLoop;
+        }
+
+        const costUsd = computeCostUsd(res.usage, rates);
+        guard.recordDecision(usageTotals(res.usage), costUsd);
+        const decisionId = `decision-${pad(++decisionSeq)}`;
+        const wasCorrection = pendingCorrection !== undefined;
+
+        const parsed = parseDecision(res.rawDecision);
+        if (!parsed.ok) {
+          // schema-invalid: account tokens (no valid LoggedDecision to emit), error + retry
+          logger.addTotals({
+            promptTokens: num(res.usage.input_tokens),
+            completionTokens: num(res.usage.output_tokens),
+            costUsd,
+            latencyMs: res.latencyMs,
+          });
+          logger.append({ type: "error", code: "SCHEMA_INVALID", detail: parsed.error, decisionId, stepId: step.id });
+          if (correctionsUsed >= MAX_CORRECTIONS_PER_DECISION) {
+            terminal = { status: "error" };
+            break stepsLoop;
+          }
+          correctionsUsed += 1;
+          pendingCorrection = { kind: "schema", detail: parsed.error };
+          logger.append({ type: "retry", ofDecisionId: decisionId, reason: `schema-invalid: ${parsed.error}`, stepId: step.id });
+          continue decisionLoop;
+        }
+
+        const decision = parsed.decision;
+        const elem = decision.kind === "action" ? snap.elements.find((e) => e.ref === decision.ref) : undefined;
+        const signal: SensitivitySignal = { accessibleName: elem?.name };
+
+        logger.append({
+          type: "llm_decision",
+          decisionId,
+          snapshotId,
+          snapshotDigest: digest,
+          decision: toLoggedDecision(decision, signal),
+          usage: res.usage,
+          costUsd,
+          latencyMs: res.latencyMs,
+          stepId: step.id,
+          ...(wasCorrection ? { correction: true } : {}),
+        });
+
+        if (decision.kind === "blocked") {
+          terminal = { status: "blocked" };
+          break stepsLoop;
+        }
+        if (decision.kind === "step_complete") {
+          await captureSnapshot(opts.actuator, logger, "step_boundary", [...sensitiveValues], step.id);
+          logger.append({ type: "step_end", stepId: step.id });
+          break decisionLoop;
+        }
+
+        // kind === "action"
+        const v = validateRef(snap, decision.ref);
+        const value = decision.action === "type" ? redactValue(decision.value ?? "", signal) : undefined;
+        if (!v.valid) {
+          logger.append({
+            type: "action",
+            decisionId,
+            snapshotId,
+            snapshotDigest: digest,
+            ref: decision.ref,
+            action: decision.action,
+            ...(value !== undefined ? { value } : {}),
+            refValidation: { valid: false, validatedBy: "harness", reason: v.reason },
+            resolvedFrom: snapshotId,
+            status: "rejected",
+            stepId: step.id,
+          });
+          logger.append({ type: "error", code: INVALID_SNAPSHOT_REF, detail: v.detail, decisionId, stepId: step.id });
+          if (correctionsUsed >= MAX_CORRECTIONS_PER_DECISION) {
+            terminal = { status: "error" };
+            break stepsLoop;
+          }
+          correctionsUsed += 1;
+          pendingCorrection = { kind: "invalid_ref", reason: v.reason, detail: v.detail, attemptedRef: decision.ref };
+          logger.append({ type: "retry", ofDecisionId: decisionId, reason: `invalid ref: ${v.detail}`, stepId: step.id });
+          continue decisionLoop;
+        }
+
+        const actTrip = guard.beforeAction();
+        if (actTrip) {
+          terminal = mapTrip(actTrip);
+          break stepsLoop;
+        }
+
+        const elementDesc = describeElement(elem?.role, elem?.name, decision.ref);
+        let result: ToolResult;
+        try {
+          if (decision.action === "type") {
+            if (isSensitive(signal)) sensitiveValues.add(decision.value ?? "");
+            result = await opts.actuator.typeRef(v.ref, elementDesc, decision.value ?? "");
+          } else {
+            result = await opts.actuator.clickRef(v.ref, elementDesc);
+          }
+        } catch (e) {
+          logger.append({ type: "error", code: "ACTION_FAILED", detail: errMsg(e), decisionId, stepId: step.id });
+          terminal = { status: "error" };
+          break stepsLoop;
+        }
+
+        guard.recordAction();
+        logger.append({
+          type: "action",
+          decisionId,
+          snapshotId,
+          snapshotDigest: digest,
+          ref: decision.ref,
+          action: decision.action,
+          ...(value !== undefined ? { value } : {}),
+          refValidation: { valid: true, validatedBy: "harness" },
+          resolvedFrom: snapshotId,
+          status: result.isError ? "failed" : "executed",
+          ...(result.isError ? { isError: true } : {}),
+          stepId: step.id,
+        });
+        attempts.push({
+          action: decision.action,
+          ref: decision.ref,
+          ...(elem?.role ? { role: elem.role } : {}),
+          ...(elem?.name ? { name: elem.name } : {}),
+          ok: !result.isError,
+        });
+        progressBaseline = progressKey(snap.yaml);
+        correctionsUsed = 0;
+        pendingCorrection = undefined;
+      } // decisionLoop
+    } // stepsLoop
+
+    const status: FinalStatus = terminal ? terminal.status : "completed";
+    if (terminal?.guardTrip) {
+      logger.append({ type: "guard_tripped", reason: terminal.guardTrip.reason, detail: terminal.guardTrip.detail });
+    }
+    // terminal snapshot (best effort) for criteria with no `after` (Phase 3)
+    await captureSnapshot(opts.actuator, logger, "terminal", [...sensitiveValues]);
+    logger.append({ type: "flow_end", executionStatus: status });
+    return logger.finalize(status);
+  } catch (e) {
+    safeAppend(logger, { type: "error", code: "EXECUTION_ERROR", detail: errMsg(e) });
+    safeAppend(logger, { type: "flow_end", executionStatus: "error" });
+    return logger.finalize("error");
+  } finally {
+    try {
+      await opts.actuator.close();
+    } catch {
+      /* teardown is best-effort */
+    }
+  }
+}
+
+function mapTrip(trip: GuardTrip): Terminal {
+  return {
+    status: trip.reason === "CANCELLED" ? "cancelled" : "guard_tripped",
+    guardTrip: trip,
+  };
+}
+
+function toLoggedDecision(
+  decision: StepDecision,
+  signal: SensitivitySignal,
+): LoggedDecision {
+  if (decision.kind === "action") {
+    const value: LoggedValue | undefined =
+      decision.action === "type" ? redactValue(decision.value ?? "", signal) : undefined;
+    return {
+      kind: "action",
+      action: decision.action,
+      ref: decision.ref,
+      ...(value !== undefined ? { value } : {}),
+      rationale: decision.rationale,
+    };
+  }
+  if (decision.kind === "step_complete") {
+    return { kind: "step_complete", rationale: decision.rationale };
+  }
+  return { kind: "blocked", reason: decision.reason };
+}
+
+async function captureSnapshot(
+  actuator: BrowserActuator,
+  logger: RunLogger,
+  kind: "step_boundary" | "terminal",
+  sensitiveValues: string[],
+  stepId?: string,
+): Promise<void> {
+  try {
+    const snap = await actuator.snapshot();
+    logger.recordSnapshot(snap, kind, sensitiveValues, stepId);
+  } catch {
+    /* boundary/terminal snapshot is best-effort */
+  }
+}
+
+function describeElement(role: string | undefined, name: string | undefined, ref: string): string {
+  if (!role) return `element ${ref}`;
+  return name ? `${role} "${name}"` : role;
+}
+
+function joinUrl(base: string, entry: string): string {
+  return base.replace(/\/+$/, "") + (entry.startsWith("/") ? entry : `/${entry}`);
+}
+
+function pad(n: number): string {
+  return String(n).padStart(3, "0");
+}
+
+function num(x: unknown): number {
+  return typeof x === "number" ? x : 0;
+}
+
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+function safeAppend(logger: RunLogger, input: Parameters<RunLogger["append"]>[0]): void {
+  try {
+    logger.append(input);
+  } catch {
+    /* already finalized or unwritable */
+  }
+}
