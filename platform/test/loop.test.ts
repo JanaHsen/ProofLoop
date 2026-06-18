@@ -39,11 +39,19 @@ function snapWithPw(): ParsedSnapshot {
 function changingSnap(n: number): ParsedSnapshot {
   return parseSnapshot(`- generic [ref=e1]:\n  - button "Sign in" [ref=e8]\n  - text: tick ${n}`, "");
 }
+function qtySnap(): ParsedSnapshot {
+  return parseSnapshot(
+    '- generic [ref=e1]:\n  - spinbutton "Qty" [ref=e34]\n  - button "Add to Cart" [ref=e35]',
+    "### Page\n- Page URL: http://x/products",
+  );
+}
 
 class MockDecider implements Decider {
+  readonly seen: DecisionContext[] = [];
   constructor(private readonly script: (ctx: DecisionContext, call: number) => unknown) {}
   private calls = 0;
   async decide(ctx: DecisionContext): Promise<DeciderResult> {
+    this.seen.push(ctx);
     const rawDecision = this.script(ctx, this.calls++);
     return { rawDecision, usage: { ...USAGE }, latencyMs: 5, model: "claude-sonnet-4-6" };
   }
@@ -163,7 +171,9 @@ test("redaction: typed password value is redacted in events AND stored snapshots
 });
 
 test("guard: no-progress trips when the page never changes", async () => {
-  const decider = new MockDecider(() => ({ kind: "action", action: "click", ref: "e8", rationale: "x" }));
+  // alternate refs so the repeat-backstop (identical action) doesn't preempt — this
+  // exercises no-progress on DIFFERENT no-effect actions
+  const decider = new MockDecider((_c, call) => ({ kind: "action", action: "click", ref: call % 2 === 0 ? "e5" : "e8", rationale: "x" }));
   const actuator = new MockActuator(() => loginSnap()); // identical every time
   const { out, cleanup } = await execute(decider, actuator);
   try {
@@ -269,6 +279,117 @@ test("cancellation: an aborted signal stops with executionStatus cancelled", asy
   try {
     assert.equal(out.manifest.executionStatus, "cancelled");
     assert.equal((types(out.events, "guard_tripped")[0] as { reason: string }).reason, "CANCELLED");
+  } finally {
+    cleanup();
+  }
+});
+
+test("backstop: a repeated no-effect action is rejected before MCP (executed once), then redirects", async () => {
+  // type e34 "2" (executes), type e34 "2" again with no page change (must be rejected), then complete
+  const decider = new MockDecider((_c, call) =>
+    call === 0
+      ? { kind: "action", action: "type", ref: "e34", value: "2", rationale: "set qty" }
+      : call === 1
+        ? { kind: "action", action: "type", ref: "e34", value: "2", rationale: "set qty again" }
+        : { kind: "step_complete", rationale: "done" },
+  );
+  const actuator = new MockActuator(() => qtySnap()); // identical snapshot every time => no effect
+  const { out, cleanup } = await execute(decider, actuator);
+  try {
+    assert.equal(out.manifest.executionStatus, "completed");
+    // the no-effect action was EXECUTED exactly once; the repeat never reached MCP
+    assert.equal(actuator.types.filter((t) => t.ref === "e34").length, 1);
+    assert.equal(types(out.events, "error").filter((e) => (e as { code: string }).code === "REPEATED_NO_EFFECT").length, 1);
+    assert.ok(types(out.events, "retry").length >= 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("backstop: insisting on the same no-effect action after correction stops with error", async () => {
+  const decider = new MockDecider(() => ({ kind: "action", action: "type", ref: "e34", value: "2", rationale: "set qty" }));
+  const actuator = new MockActuator(() => qtySnap());
+  const { out, cleanup } = await execute(decider, actuator);
+  try {
+    assert.equal(out.manifest.executionStatus, "error");
+    assert.equal(actuator.types.filter((t) => t.ref === "e34").length, 1); // executed once only
+    assert.ok(types(out.events, "error").filter((e) => (e as { code: string }).code === "REPEATED_NO_EFFECT").length >= 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("recognition: after an effective action, the next decision is given observableEffect=true", async () => {
+  // click changes the page; the harness must surface "it worked" so the model can complete
+  const decider = new MockDecider((_c, call) =>
+    call === 0 ? { kind: "action", action: "click", ref: "e8", rationale: "do it" } : { kind: "step_complete", rationale: "done" },
+  );
+  const actuator = new MockActuator((i) =>
+    parseSnapshot(`- generic [ref=e1]:\n  - button "Go" [ref=e8]\n  - text: state ${i}`, "### Page\n- Page URL: http://x/p"),
+  );
+  const { out, cleanup } = await execute(decider, actuator);
+  try {
+    assert.equal(out.manifest.executionStatus, "completed");
+    const completing = decider.seen[1]; // the step_complete decision's context
+    assert.equal(completing.pageChangedSinceAction, true);
+    assert.equal(completing.attemptsInStep.at(-1)?.observableEffect, true);
+  } finally {
+    cleanup();
+  }
+});
+
+test("recognition: an already-satisfied step completes without an unnecessary action", async () => {
+  // 2-step plan; step 2's goal is already met on arrival (like being on /cart already),
+  // so the model returns step_complete immediately and the loop performs no action
+  const plan2 = parseFlow(
+    "---\nname: T\nentry: /x\n---\n\n## Steps\n1. Click go.\n2. Confirm the result.\n\n## Acceptance Criteria\n- ok.\n",
+    "t",
+  );
+  const decider = new MockDecider((ctx, call) =>
+    ctx.step.ordinal === 1
+      ? call === 0
+        ? { kind: "action", action: "click", ref: "e8", rationale: "go" }
+        : { kind: "step_complete", rationale: "clicked" }
+      : { kind: "step_complete", rationale: "already satisfied" },
+  );
+  const actuator = new MockActuator((i) => parseSnapshot(`- generic [ref=e1]:\n  - button "Go" [ref=e8]\n  - text: s ${i}`, ""));
+  const runsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "proofloop-loop-"));
+  try {
+    const manifest = await runFlow({
+      plan: plan2,
+      baseUrl: "http://x",
+      runId: "r",
+      runsRoot,
+      model: "claude-sonnet-4-6",
+      pricingConfigId: "anthropic-2026-06",
+      decider,
+      actuator,
+      now: NOW,
+    });
+    assert.equal(manifest.executionStatus, "completed");
+    const { events } = readEvents(path.join(runsRoot, "r", "events.jsonl"));
+    const step2Actions = events.filter((e) => e.type === "action" && (e as { stepId?: string }).stepId === "t:S2");
+    assert.equal(step2Actions.length, 0); // step 2 completed with NO unnecessary action
+    assert.equal(events.filter((e) => e.type === "step_end").length, 2);
+  } finally {
+    fs.rmSync(runsRoot, { recursive: true, force: true });
+  }
+});
+
+test("legitimate repeat is allowed: same control, but the page changes each time", async () => {
+  // clicking "Add to Cart" twice — each click changes the page (cart count) => not a no-effect repeat
+  const decider = new MockDecider((_c, call) =>
+    call < 2 ? { kind: "action", action: "click", ref: "e35", rationale: "add to cart" } : { kind: "step_complete", rationale: "added twice" },
+  );
+  const actuator = new MockActuator((i) =>
+    parseSnapshot(`- generic [ref=e1]:\n  - button "Add to Cart" [ref=e35]\n  - text: cart ${i}`, ""),
+  );
+  const { out, cleanup } = await execute(decider, actuator);
+  try {
+    assert.equal(out.manifest.executionStatus, "completed");
+    // both clicks executed — the backstop did NOT block the legitimate repeat
+    assert.equal((out.events.filter((e) => e.type === "action" && (e as { ref: string }).ref === "e35" && (e as { status: string }).status === "executed")).length, 2);
+    assert.equal(types(out.events, "error").length, 0);
   } finally {
     cleanup();
   }

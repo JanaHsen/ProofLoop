@@ -102,9 +102,19 @@ test("buildCorrectionNotice: invalid ref names the bad ref and lists choices", (
   assert.match(notice, /e8 \(button "Sign in"\)/);
 });
 
-test("buildCorrectionNotice: schema failure quotes the violation", () => {
+test("buildCorrectionNotice: schema failure is directive and quotes the violation", () => {
   const notice = buildCorrectionNotice({ kind: "schema", detail: "missing rationale" }, SNAP);
-  assert.match(notice, /did not match the required schema: missing rationale/);
+  assert.match(notice, /invalid: missing rationale/);
+  assert.match(notice, /non-empty rationale/);
+});
+
+test("buildCorrectionNotice: repeated-no-effect tells the model not to repeat", () => {
+  const notice = buildCorrectionNotice(
+    { kind: "repeated_no_effect", detail: "type on e34 had no observable effect", attemptedRef: "e34" },
+    SNAP,
+  );
+  assert.match(notice, /no observable effect/);
+  assert.match(notice, /Do not repeat/);
 });
 
 test("policy constants are frozen as agreed", () => {

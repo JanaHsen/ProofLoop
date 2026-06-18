@@ -501,9 +501,17 @@ This is the Phase 2 exit gate because it tests genuine intent disambiguation, wh
 for the minimum Phase 2 gate, not outside the execution engine's eventual remit.**
 
 🚦 **HUMAN GATE:** the human watches the headed run and independently verifies the full
-audit chain from the stored artifacts.
+audit chain from the stored artifacts. ✅ *APPROVED — `add-to-cart` ran headed to
+`executionStatus: completed` (all 5 steps); cart reached Desk Lamp ×2 + Coffee Mug ×1
+(Subtotal $58.97 / Tax $5.90 / Total $64.87); black-box multi-page navigation discovered
+from live snapshots (`/login → / → /products → /cart → /products → /cart`); `verifyAuditChain`
+ok over all 10 executed actions, every action a harness-validated `eN` ref, no selector/
+coordinate; 1 schema-invalid decision recovered via the single bounded correction; 0
+blocked, 0 guard trips; `password123` in 0 run-dir files; 15 decisions, $0.1110, tests +
+typecheck green. Decider config: Sonnet 4.6, `tool_choice: auto`, `disable_parallel_tool_use`,
+bounded adaptive thinking (low effort). No criterion verdict logic.*
 
-✅ **COMMIT:** `test(platform): headed add-to-cart Phase 2 exit run`
+✅ **COMMIT:** `feat(platform): complete headed add-to-cart execution gate`
 
 ---
 
@@ -525,29 +533,29 @@ audit chain from the stored artifacts.
 
 ## Exit Checklist (the gate to Phase 3)
 
-- [ ] `@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, `@playwright/mcp` pinned; Chromium
+- [x] `@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, `@playwright/mcp` pinned; Chromium
   installed; MCP server lifecycle-managed over `stdio`.
-- [ ] `platform/runs/` exists with committed `.gitkeep` + README; generated contents
+- [x] `platform/runs/` exists with committed `.gitkeep` + README; generated contents
   gitignored; `CLAUDE.md` updated (human-gated).
-- [ ] Accessibility snapshots used; vision/coordinate actions disabled; arbitrary selectors
+- [x] Accessibility snapshots used; vision/coordinate actions disabled; arbitrary selectors
   forbidden by the action contract.
-- [ ] One fresh isolated browser context per flow; state persists within a flow, isolated
+- [x] One fresh isolated browser context per flow; state persists within a flow, isolated
   across flows; viewport read from `FlowPlan`, not hardcoded.
-- [ ] The harness forces snapshot-before-decision; every element-targeted action uses a ref
+- [x] The harness forces snapshot-before-decision; every element-targeted action uses a ref
   from the **latest** snapshot; invalid/stale refs are rejected before reaching MCP.
-- [ ] The snapshot→ref→action chain is independently re-verifiable from the logs.
-- [ ] Every guard has a passing test that demonstrates it trips correctly; one bounded
+- [x] The snapshot→ref→action chain is independently re-verifiable from the logs.
+- [x] Every guard has a passing test that demonstrates it trips correctly; one bounded
   correction is allowed for an invalid response, then execution stops.
-- [ ] Manifest + events carry `runLogSchemaVersion`; `planHash` ties each run to the exact
+- [x] Manifest + events carry `runLogSchemaVersion`; `planHash` ties each run to the exact
   parsed `FlowPlan`; `seq` harness-generated and strictly increasing; manifest finalize is
   atomic; JSONL preserves complete events after a crash; blobs referenced by id + digest.
-- [ ] Step-boundary and terminal snapshots captured.
-- [ ] Raw token usage, latency, and recomputable cost (versioned pricing) recorded;
+- [x] Step-boundary and terminal snapshots captured.
+- [x] Raw token usage, latency, and recomputable cost (versioned pricing) recorded;
   sensitive values redacted; `PROOFLOOP_BUGS` absent from all executor and LLM context.
-- [ ] `login` and `add-to-cart` both complete in headed mode and prove live-snapshot
+- [x] `login` and `add-to-cart` both complete in headed mode and prove live-snapshot
   element resolution.
-- [ ] No verdict or criterion-evaluation logic exists.
-- [ ] `npm test` and `npm run typecheck` pass.
+- [x] No verdict or criterion-evaluation logic exists.
+- [x] `npm test` and `npm run typecheck` pass.
 
 ---
 

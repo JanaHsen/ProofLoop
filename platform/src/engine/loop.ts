@@ -22,7 +22,7 @@ import type { ToolResult } from "../mcp/client";
 import {
   DecisionFailure,
   INVALID_SNAPSHOT_REF,
-  MAX_CORRECTIONS_PER_DECISION,
+  REPEATED_NO_EFFECT,
   StepDecision,
   parseDecision,
 } from "./protocol";
@@ -131,10 +131,17 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
         stepTextHash: hashStepText(step.text),
       });
 
-      let correctionsUsed = 0;
       let pendingCorrection: DecisionFailure | undefined;
+      // The exact failure we last requested a correction for. One correction per
+      // distinct failure (MAX_CORRECTIONS_PER_DECISION); if the SAME failure recurs,
+      // stop. Different failures in a row each get their own shot (e.g. fix the
+      // schema, then redirect off a no-effect repeat).
+      let lastCorrectionSig: string | null = null;
       let progressBaseline: string | null = null;
       let lastActionKey: string | null = null;
+      // The last EXECUTED action's signature + the progress key it acted on, for the
+      // deterministic repeated-no-effect backstop.
+      let lastExecutedAction: { sig: string; preKey: string } | null = null;
 
       decisionLoop: while (true) {
         if (opts.signal?.aborted) guard.cancel();
@@ -177,6 +184,11 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           attempts.length > 0 &&
           lastActionKey !== null &&
           progressKey(snap.yaml) !== lastActionKey;
+        // resolve the previous attempt's observable effect now that we have the next
+        // snapshot — gives the model role + effect history to recognize a stuck input.
+        if (attempts.length > 0 && lastActionKey !== null) {
+          attempts[attempts.length - 1].observableEffect = pageChangedSinceAction;
+        }
         let res;
         try {
           res = await opts.decider.decide({
@@ -207,12 +219,13 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
             latencyMs: res.latencyMs,
           });
           logger.append({ type: "error", code: "SCHEMA_INVALID", detail: scrub(parsed.error), decisionId, stepId: step.id });
-          if (correctionsUsed >= MAX_CORRECTIONS_PER_DECISION) {
+          const failure: DecisionFailure = { kind: "schema", detail: parsed.error };
+          if (failureSig(failure) === lastCorrectionSig) {
             terminal = { status: "error" };
             break stepsLoop;
           }
-          correctionsUsed += 1;
-          pendingCorrection = { kind: "schema", detail: parsed.error };
+          lastCorrectionSig = failureSig(failure);
+          pendingCorrection = failure;
           logger.append({ type: "retry", ofDecisionId: decisionId, reason: scrub(`schema-invalid: ${parsed.error}`), stepId: step.id });
           continue decisionLoop;
         }
@@ -263,6 +276,33 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
         }
 
         // kind === "action"
+        // Deterministic backstop: reject — BEFORE MCP — a repeat of the immediately
+        // previous action ({action, ref, value}) when the page has not meaningfully
+        // changed since (i.e. that action had no observable effect). Legitimate
+        // repeats (e.g. clicking the same "Add" twice) are allowed because each
+        // successful one changes the page/app state, so the keys differ.
+        const actSig = actionSignature(decision.action, decision.ref, decision.value ?? "");
+        if (
+          lastExecutedAction !== null &&
+          actSig === lastExecutedAction.sig &&
+          progressKey(snap.yaml) === lastExecutedAction.preKey
+        ) {
+          const failure: DecisionFailure = {
+            kind: "repeated_no_effect",
+            detail: `${decision.action} on ${decision.ref} had no observable effect; do not repeat it`,
+            attemptedRef: decision.ref,
+          };
+          logger.append({ type: "error", code: REPEATED_NO_EFFECT, detail: scrub(failure.detail), decisionId, stepId: step.id });
+          if (failureSig(failure) === lastCorrectionSig) {
+            terminal = { status: "error" };
+            break stepsLoop;
+          }
+          lastCorrectionSig = failureSig(failure);
+          pendingCorrection = failure;
+          logger.append({ type: "retry", ofDecisionId: decisionId, reason: scrub(failure.detail), stepId: step.id });
+          continue decisionLoop;
+        }
+
         const v = validateRef(snap, decision.ref);
         if (!v.valid) {
           logger.append({
@@ -279,12 +319,13 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
             stepId: step.id,
           });
           logger.append({ type: "error", code: INVALID_SNAPSHOT_REF, detail: scrub(v.detail), decisionId, stepId: step.id });
-          if (correctionsUsed >= MAX_CORRECTIONS_PER_DECISION) {
+          const failure: DecisionFailure = { kind: "invalid_ref", reason: v.reason, detail: v.detail, attemptedRef: decision.ref };
+          if (failureSig(failure) === lastCorrectionSig) {
             terminal = { status: "error" };
             break stepsLoop;
           }
-          correctionsUsed += 1;
-          pendingCorrection = { kind: "invalid_ref", reason: v.reason, detail: v.detail, attemptedRef: decision.ref };
+          lastCorrectionSig = failureSig(failure);
+          pendingCorrection = failure;
           logger.append({ type: "retry", ofDecisionId: decisionId, reason: scrub(`invalid ref: ${v.detail}`), stepId: step.id });
           continue decisionLoop;
         }
@@ -324,17 +365,24 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           ...(result.isError ? { isError: true } : {}),
           stepId: step.id,
         });
+        const attemptValue =
+          decision.action === "type"
+            ? typeof loggedValue === "string"
+              ? loggedValue
+              : "[REDACTED]"
+            : undefined;
         attempts.push({
           action: decision.action,
           ref: decision.ref,
           ...(elem?.role ? { role: elem.role } : {}),
           ...(elem?.name ? { name: elem.name } : {}),
-          ok: !result.isError,
+          ...(attemptValue !== undefined ? { value: attemptValue } : {}),
         });
         const actedKey = progressKey(snap.yaml);
         progressBaseline = actedKey;
         lastActionKey = actedKey;
-        correctionsUsed = 0;
+        lastExecutedAction = { sig: actSig, preKey: actedKey };
+        lastCorrectionSig = null;
         pendingCorrection = undefined;
       } // decisionLoop
     } // stepsLoop
@@ -365,6 +413,23 @@ function mapTrip(trip: GuardTrip): Terminal {
     status: trip.reason === "CANCELLED" ? "cancelled" : "guard_tripped",
     guardTrip: trip,
   };
+}
+
+/** Stable signature of an element-targeted action, for repeat detection. */
+function actionSignature(action: string, ref: string, value: string): string {
+  return `${action}:${ref}:${value}`;
+}
+
+/** Stable signature of a decision failure — one correction per distinct failure. */
+function failureSig(f: DecisionFailure): string {
+  switch (f.kind) {
+    case "schema":
+      return `schema:${f.detail}`;
+    case "invalid_ref":
+      return `invalid_ref:${f.attemptedRef}:${f.reason}`;
+    case "repeated_no_effect":
+      return `repeat:${f.attemptedRef}:${f.detail}`;
+  }
 }
 
 function toLoggedDecision(

@@ -188,11 +188,19 @@ export const MAX_CORRECTIONS_PER_DECISION = 1;
 /** Stable error code recorded when a model ref fails snapshot validation. */
 export const INVALID_SNAPSHOT_REF = "INVALID_SNAPSHOT_REF";
 
+/** Stable error code recorded when a no-effect action is proposed again (harness backstop). */
+export const REPEATED_NO_EFFECT = "REPEATED_NO_EFFECT";
+
 export type DecisionFailure =
   | { kind: "schema"; detail: string }
   | {
       kind: "invalid_ref";
       reason: RefRejectReason;
+      detail: string;
+      attemptedRef: string;
+    }
+  | {
+      kind: "repeated_no_effect";
       detail: string;
       attemptedRef: string;
     };
@@ -213,14 +221,29 @@ export function buildCorrectionNotice(
   failure: DecisionFailure,
   snapshot: ParsedSnapshot,
 ): string {
-  const head =
-    failure.kind === "schema"
-      ? `Your previous response did not match the required schema: ${failure.detail}.`
-      : `Your previous decision used ref "${failure.attemptedRef}", which is not ` +
-        `usable: ${failure.detail}.`;
+  let head: string;
+  switch (failure.kind) {
+    case "schema":
+      head =
+        `Your decision was invalid: ${failure.detail}. Return exactly ONE supported ` +
+        `decision — an action (click or type) with a non-empty rationale, ` +
+        `step_complete with a rationale, or blocked with a reason.`;
+      break;
+    case "invalid_ref":
+      head =
+        `Your previous decision used ref "${failure.attemptedRef}", which is not ` +
+        `usable: ${failure.detail}. Choose a ref that exists in the current snapshot.`;
+      break;
+    case "repeated_no_effect":
+      head =
+        `Your previous action on "${failure.attemptedRef}" had no observable effect ` +
+        `and you proposed the identical action again. Do not repeat it — choose a ` +
+        `different action, a different element, or a complementary next action that ` +
+        `advances the current step.`;
+      break;
+  }
   return (
-    `${head}\nA fresh snapshot of the current page is provided below. Respond once ` +
-    `more, following the schema exactly and choosing a ref that exists now.\n` +
+    `${head}\nA fresh snapshot of the current page is provided below.\n` +
     `Available refs: ${describeRefs(snapshot)}`
   );
 }

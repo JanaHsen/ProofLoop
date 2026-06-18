@@ -30,7 +30,10 @@ export interface AttemptSummary {
   ref: string;
   role?: string;
   name?: string;
-  ok: boolean;
+  /** Typed value (masked if sensitive); absent for clicks. */
+  value?: string;
+  /** Did the page change after this action? Resolved at the next snapshot. */
+  observableEffect?: boolean;
 }
 
 export interface DecisionContext {
@@ -66,27 +69,26 @@ export const SYSTEM_PROMPT = [
   '  - action "click": click the element with the given ref.',
   '  - action "type": type the given value into the element with the given ref.',
   "  - step_complete: the step's requested action has been performed and the page",
-  "    responded. A changed or navigated page — or the controls you just used no longer",
-  "    being present because the action already took effect — IS that response. If the",
-  '    "Actions already attempted" list shows the step\'s action was done and the page',
-  "    has since changed, return step_complete. This only means an action happened and a",
-  "    response was observed; it does NOT mean the result was correct. Do not judge",
-  "    correctness — that is not your job.",
-  "  - blocked: ONLY when the step's action genuinely cannot be performed — the required",
-  "    control does not exist on the page and never appeared. Do NOT use blocked merely",
-  "    because the form/controls are gone after you already acted; that is step_complete.",
-  "How to decide step_complete vs blocked:",
-  "  1. Look at the attempted-actions list and whether the page changed since.",
-  "  2. If the step's action is already listed there AND the page has changed or",
-  "     navigated since (new URL, or the controls you used are gone), the action took",
-  "     effect — return step_complete.",
-  "  3. Choose blocked ONLY if you could not perform the action and the required control",
-  "     is not present and never appeared.",
-  "General principle (not tied to any specific step): when an action you took produces",
-  "the expected page change, consider whether the step is now complete. If you perform",
-  "the step's action and the next snapshot is a changed or different page where the",
-  "control you used is no longer present, the action took effect — return step_complete,",
-  "not blocked.",
+  "    responded. A changed or navigated page — or the control you used no longer being",
+  "    present because the action took effect — IS that response. This means an action",
+  "    happened and a response was observed; it does NOT mean the result was correct. Do",
+  "    not judge correctness — that is not your job.",
+  "  - blocked: a last resort; see the rule below.",
+  "Before returning blocked, check both the current snapshot and the attempted-action",
+  "history. If the requested action has already been performed, or the current page shows",
+  "that the step is already satisfied, return step_complete. A step may already be",
+  "complete at the beginning of a decision without requiring another action. Return",
+  "blocked only when the step is not complete and no available permitted action can make",
+  "further progress.",
+  "Identify the step's main action verb and prefer an interactive control whose accessible",
+  "name and role directly perform that action. Inputs such as textboxes, spinbuttons, and",
+  "selectors may configure the action, but they do not usually complete it by themselves.",
+  "Configure an auxiliary input at most once when needed, then activate the relevant",
+  "primary control. If repeated interaction with one element is not advancing the step,",
+  "reconsider the element's role and choose a different kind of control.",
+  "A step is not restricted to the current page. If performing it requires a different",
+  "page, navigate there (for example by clicking a link) — navigating is progress, not a",
+  "reason to block.",
   "Rules: the ref MUST be one of the refs in the current snapshot — never invent a ref,",
   "a CSS selector, or an element that is not listed. Choose elements by their role and",
   "accessible name (intent), not by position. Do one atomic action per call; you receive",
@@ -107,11 +109,13 @@ function buildUserMessage(ctx: DecisionContext): string {
   }
   lines.push("");
   if (ctx.attemptsInStep.length) {
-    lines.push("Actions already attempted in this step:");
+    lines.push("Actions already attempted in this step (most recent last):");
     for (const a of ctx.attemptsInStep) {
-      lines.push(
-        `  ${a.action} ${a.ref}${a.name ? ` ("${a.name}")` : ""} -> ${a.ok ? "ok" : "error"}`,
-      );
+      const parts = [`action=${a.action}`, `ref=${a.ref}`, `role=${a.role ?? "?"}`];
+      if (a.name) parts.push(`name="${a.name}"`);
+      if (a.value !== undefined) parts.push(`value=${a.value}`);
+      if (a.observableEffect !== undefined) parts.push(`observableEffect=${a.observableEffect}`);
+      lines.push(`  - ${parts.join(" ")}`);
     }
   } else {
     lines.push("No actions attempted yet in this step.");
@@ -141,7 +145,8 @@ export class AnthropicDecider implements Decider {
   constructor(opts: AnthropicDeciderOptions) {
     this.client = new Anthropic({ apiKey: opts.apiKey });
     this.model = opts.model;
-    this.maxTokens = opts.maxTokens ?? 1024;
+    // Headroom for bounded adaptive thinking + the single tool call.
+    this.maxTokens = opts.maxTokens ?? 4096;
   }
 
   async decide(ctx: DecisionContext): Promise<DeciderResult> {
@@ -155,12 +160,19 @@ export class AnthropicDecider implements Decider {
       },
     ];
     const t0 = Date.now();
+    // Bounded thinking (adaptive + low effort) so the model can reason about
+    // multi-step sub-tasks; tool_choice "auto" (not forced) so thinking is allowed,
+    // with parallel tool use disabled so it returns exactly one decision call. The
+    // harness still requires a schema-valid decision (no tool call => schema error =>
+    // one bounded correction). All ref-validation and guards are unchanged.
     const resp = await this.client.messages.create({
       model: this.model,
       max_tokens: this.maxTokens,
       system: SYSTEM_PROMPT,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "low" },
       tools: tools as Anthropic.Tool[],
-      tool_choice: { type: "tool", name: DECISION_TOOL_NAME },
+      tool_choice: { type: "auto", disable_parallel_tool_use: true },
       messages: [{ role: "user", content: buildUserMessage(ctx) }],
     });
     const latencyMs = Date.now() - t0;
