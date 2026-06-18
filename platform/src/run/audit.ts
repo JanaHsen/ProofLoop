@@ -17,6 +17,7 @@ import {
   RunEvent,
   RunManifest,
   StoredSnapshot,
+  assertSupportedRunLogSchemaVersion,
 } from "./schema";
 
 export interface ReadEventsResult {
@@ -37,24 +38,32 @@ export function readEvents(eventsPath: string): ReadEventsResult {
   let truncatedFinalLine = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    let event: RunEvent;
     try {
-      events.push(JSON.parse(line) as RunEvent);
+      event = JSON.parse(line) as RunEvent;
     } catch {
       // only the final line may be a partial write; anything earlier is corruption
       if (i === lines.length - 1) {
         truncatedFinalLine = true;
-      } else {
-        throw new Error(`events.jsonl: malformed non-final line ${i + 1}`);
+        continue;
       }
+      throw new Error(`events.jsonl: malformed non-final line ${i + 1}`);
     }
+    // A declared schema version must be one we can read (membership, not an equality pin),
+    // so an unknown future version is rejected rather than silently mis-read.
+    const declared = (event as { runLogSchemaVersion?: unknown }).runLogSchemaVersion;
+    if (declared !== undefined) assertSupportedRunLogSchemaVersion(declared);
+    events.push(event);
   }
   return { events, truncatedFinalLine };
 }
 
 export function readManifest(runDir: string): RunManifest {
-  return JSON.parse(
+  const manifest = JSON.parse(
     fs.readFileSync(path.join(runDir, "run.json"), "utf8"),
   ) as RunManifest;
+  assertSupportedRunLogSchemaVersion(manifest.runLogSchemaVersion);
+  return manifest;
 }
 
 /**

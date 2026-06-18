@@ -12,6 +12,7 @@ import { BrowserActuator, runFlow } from "../src/engine/loop";
 import type { Decider, DecisionContext, DeciderResult } from "../src/engine/decider";
 import { DEFAULT_GUARDS, GuardConfig } from "../src/engine/guards";
 import { readEvents, readManifest, verifyAuditChain } from "../src/run/audit";
+import { FAILURE_DETAIL_MAX_LEN } from "../src/run/schema";
 import type { RunEvent } from "../src/run/schema";
 
 const NOW = () => new Date("2026-06-18T00:00:00.000Z");
@@ -74,6 +75,47 @@ class MockActuator implements BrowserActuator {
   async typeRef(ref: ValidatedRef, element: string, text: string): Promise<ToolResult> {
     this.types.push({ ref, element, text });
     return { text: "ok", isError: false };
+  }
+  async close() {}
+}
+
+/** Element actions return a fixed ToolResult — drives the isError / failureDetail paths. */
+class FixedResultActuator implements BrowserActuator {
+  readonly clicks: { ref: string; element: string }[] = [];
+  private i = 0;
+  constructor(
+    private readonly snaps: (i: number) => ParsedSnapshot,
+    private readonly result: ToolResult,
+  ) {}
+  async launch() {}
+  async navigate() {}
+  async snapshot() {
+    return this.snaps(this.i++);
+  }
+  async clickRef(ref: ValidatedRef, element: string): Promise<ToolResult> {
+    this.clicks.push({ ref, element });
+    return this.result;
+  }
+  async typeRef(): Promise<ToolResult> {
+    return this.result;
+  }
+  async close() {}
+}
+
+/** Element actions throw — drives the actuator-throw path (ACTION_FAILED, no action event). */
+class ThrowingActuator implements BrowserActuator {
+  private i = 0;
+  constructor(private readonly snaps: (i: number) => ParsedSnapshot) {}
+  async launch() {}
+  async navigate() {}
+  async snapshot() {
+    return this.snaps(this.i++);
+  }
+  async clickRef(): Promise<ToolResult> {
+    throw new Error("boom: actuator dispatch failed");
+  }
+  async typeRef(): Promise<ToolResult> {
+    throw new Error("boom: actuator dispatch failed");
   }
   async close() {}
 }
@@ -392,5 +434,140 @@ test("legitimate repeat is allowed: same control, but the page changes each time
     assert.equal(types(out.events, "error").length, 0);
   } finally {
     cleanup();
+  }
+});
+
+// --- D25: failed-action evidence (run-log 1.1) ---------------------------------------
+
+test("D25: actuator throw ⇒ ACTION_FAILED error, no action event, loop stops with error", async () => {
+  const decider = new MockDecider(() => ({ kind: "action", action: "click", ref: "e8", rationale: "go" }));
+  const actuator = new ThrowingActuator(() => loginSnap());
+  const { out, cleanup } = await execute(decider, actuator);
+  try {
+    assert.equal(out.manifest.executionStatus, "error");
+    // the throw aborts BEFORE the action append — no action event of any status is written
+    assert.equal(types(out.events, "action").length, 0);
+    const failed = types(out.events, "error").filter((e) => (e as { code: string }).code === "ACTION_FAILED");
+    assert.equal(failed.length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("D25: isError result ⇒ action status failed + failureDetail, loop continues to completion", async () => {
+  const decider = new MockDecider((_c, call) =>
+    call === 0
+      ? { kind: "action", action: "click", ref: "e8", rationale: "go" }
+      : { kind: "step_complete", rationale: "done" },
+  );
+  const actuator = new FixedResultActuator(() => loginSnap(), { text: "element is not enabled", isError: true });
+  const { out, cleanup } = await execute(decider, actuator);
+  try {
+    // a failed action does NOT terminate the run (D9: a non-favourable response is a completed action)
+    assert.equal(out.manifest.executionStatus, "completed");
+    const acts = types(out.events, "action") as {
+      status: string;
+      isError?: boolean;
+      failureDetail?: string;
+      failureDetailTruncated?: boolean;
+    }[];
+    assert.equal(acts.length, 1);
+    assert.equal(acts[0].status, "failed");
+    assert.equal(acts[0].isError, true);
+    assert.equal(acts[0].failureDetail, "element is not enabled");
+    assert.equal(acts[0].failureDetailTruncated, undefined); // short detail — not clipped
+    assert.equal(types(out.events, "step_end").length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("D25: failureDetail is scrubbed BEFORE truncation (a boundary-straddling secret leaves no fragment)", async () => {
+  const SECRET = "ZZTOPsecretpw0rd"; // 16 chars; the distinctive "ZZTOP" prefix is the tell
+  const scrubPlan = parseFlow(
+    `---\nname: T\nentry: /login\n---\n\n## Steps\n1. Sign in using the password "${SECRET}".\n\n## Acceptance Criteria\n- ok.\n`,
+    "login",
+  );
+  // Straddle the bound: the secret starts 5 chars before the cut. Truncate-FIRST would
+  // keep "ZZTOP" (before the cut) and the literal redaction would then never match it.
+  const failureText = "X".repeat(FAILURE_DETAIL_MAX_LEN - 5) + SECRET + "Y".repeat(200);
+  const decider = new MockDecider((_c, call) =>
+    call === 0
+      ? { kind: "action", action: "click", ref: "e8", rationale: "go" }
+      : { kind: "step_complete", rationale: "done" },
+  );
+  const actuator = new FixedResultActuator(() => loginSnap(), { text: failureText, isError: true });
+  const runsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "proofloop-loop-"));
+  try {
+    await runFlow({
+      plan: scrubPlan,
+      baseUrl: "http://x",
+      runId: "r",
+      runsRoot,
+      model: "claude-sonnet-4-6",
+      pricingConfigId: "anthropic-2026-06",
+      decider,
+      actuator,
+      now: NOW,
+    });
+    const eventsPath = path.join(runsRoot, "r", "events.jsonl");
+    const raw = fs.readFileSync(eventsPath, "utf8");
+    const { events } = readEvents(eventsPath);
+    const action = events.find((e) => e.type === "action") as
+      | { failureDetail: string; failureDetailTruncated?: boolean }
+      | undefined;
+    assert.ok(action, "a failed action event exists");
+    assert.equal(action!.failureDetailTruncated, true);
+    assert.equal(action!.failureDetail.length, FAILURE_DETAIL_MAX_LEN);
+    assert.ok(!action!.failureDetail.includes(SECRET), "the full secret is gone");
+    assert.ok(
+      !action!.failureDetail.includes("ZZTOP"),
+      "the boundary fragment a truncate-first order would leave is gone — proves scrub-first",
+    );
+    assert.ok(action!.failureDetail.endsWith("[REDA"), "the redaction marker sits at the truncation boundary");
+    assert.ok(!raw.includes(SECRET), "the secret literal appears nowhere in the event log");
+  } finally {
+    fs.rmSync(runsRoot, { recursive: true, force: true });
+  }
+});
+
+test("D25: blocked, guard_tripped, and in-loop error each still produce exactly one terminal snapshot", async () => {
+  const terminals = (events: RunEvent[]) =>
+    types(events, "snapshot").filter((e) => (e as { kind: string }).kind === "terminal");
+
+  // blocked
+  {
+    const decider = new MockDecider(() => ({ kind: "blocked", reason: "no control" }));
+    const { out, cleanup } = await execute(decider, new MockActuator(() => loginSnap()));
+    try {
+      assert.equal(out.manifest.executionStatus, "blocked");
+      const t = terminals(out.events);
+      assert.equal(t.length, 1);
+      assert.equal((t[0] as { stepId?: string }).stepId, undefined); // terminal carries no stepId
+    } finally {
+      cleanup();
+    }
+  }
+  // guard_tripped (no-progress: identical page, alternating refs so the repeat backstop doesn't preempt)
+  {
+    const decider = new MockDecider((_c, call) => ({ kind: "action", action: "click", ref: call % 2 === 0 ? "e5" : "e8", rationale: "x" }));
+    const { out, cleanup } = await execute(decider, new MockActuator(() => loginSnap()));
+    try {
+      assert.equal(out.manifest.executionStatus, "guard_tripped");
+      assert.equal(terminals(out.events).length, 1);
+    } finally {
+      cleanup();
+    }
+  }
+  // in-loop error (insist on an invalid ref ⇒ one correction ⇒ error)
+  {
+    const decider = new MockDecider(() => ({ kind: "action", action: "click", ref: "e999", rationale: "x" }));
+    const { out, cleanup } = await execute(decider, new MockActuator(() => loginSnap()));
+    try {
+      assert.equal(out.manifest.executionStatus, "error");
+      assert.equal(terminals(out.events).length, 1);
+    } finally {
+      cleanup();
+    }
   }
 });

@@ -35,7 +35,7 @@ import {
 } from "./guards";
 import type { AttemptSummary, Decider } from "./decider";
 import { RunLogger } from "../run/logger";
-import { computePlanHash, ExecutionStatus, LoggedDecision, LoggedValue, RunManifest, hashStepText } from "../run/schema";
+import { computePlanHash, ExecutionStatus, FAILURE_DETAIL_MAX_LEN, LoggedDecision, LoggedValue, RunManifest, hashStepText } from "../run/schema";
 import { computeCostUsd, loadPricing, ratesFor, usageTotals } from "../run/pricing";
 import { SensitivitySignal, extractSecretLiterals, isSensitive, redactValuesInText } from "../run/redaction";
 
@@ -351,6 +351,12 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
         }
 
         guard.recordAction();
+        // (run-log 1.1, D25) On an isError result, capture failed-action evidence:
+        // scrub FIRST (run-scoped redaction), THEN truncate from the end. No control-flow
+        // change — a failed action is still recorded and the loop still continues.
+        const failure = result.isError
+          ? truncateFailureDetail(scrub(result.text))
+          : undefined;
         logger.append({
           type: "action",
           decisionId,
@@ -363,6 +369,7 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           resolvedFrom: snapshotId,
           status: result.isError ? "failed" : "executed",
           ...(result.isError ? { isError: true } : {}),
+          ...(failure ?? {}),
           stepId: step.id,
         });
         const attemptValue =
@@ -520,6 +527,23 @@ function pad(n: number): string {
 
 function num(x: unknown): number {
   return typeof x === "number" ? x : 0;
+}
+
+/**
+ * (run-log 1.1, D25) Bound an ALREADY-SCRUBBED failure detail. Truncate from the END so
+ * the leading Playwright actionability diagnostic survives. Scrub-before-truncate is the
+ * caller's responsibility and is load-bearing: truncating first could sever a secret
+ * across the cut and leave a fragment the literal-based redaction would no longer match.
+ */
+function truncateFailureDetail(scrubbed: string): {
+  failureDetail: string;
+  failureDetailTruncated?: true;
+} {
+  if (scrubbed.length <= FAILURE_DETAIL_MAX_LEN) return { failureDetail: scrubbed };
+  return {
+    failureDetail: scrubbed.slice(0, FAILURE_DETAIL_MAX_LEN),
+    failureDetailTruncated: true,
+  };
 }
 
 function errMsg(e: unknown): string {

@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { extractYamlBlock, parseSnapshot, validateRef } from "../src/mcp/snapshot";
+import { digestSnapshot, extractYamlBlock, parseSnapshot, validateRef } from "../src/mcp/snapshot";
 import { parseFlow } from "../src/parser";
 import { RunLogger } from "../src/run/logger";
 import {
@@ -13,7 +13,12 @@ import {
   readManifest,
   verifyAuditChain,
 } from "../src/run/audit";
-import { RUN_LOG_SCHEMA_VERSION, computePlanHash } from "../src/run/schema";
+import {
+  ActionEvent,
+  RUN_LOG_SCHEMA_VERSION,
+  UnsupportedRunLogSchemaError,
+  computePlanHash,
+} from "../src/run/schema";
 
 const FIXTURE = fs.readFileSync(
   path.join(__dirname, "fixtures", "snapshot-result.txt"),
@@ -199,6 +204,108 @@ test("readEvents tolerates exactly one truncated final line", () => {
     // a clean trailing newline is not a truncation
     fs.writeFileSync(p, '{"seq":1,"type":"flow_start"}\n');
     assert.deepEqual(readEvents(p), { events: [{ seq: 1, type: "flow_start" }], truncatedFinalLine: false });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("run-log 1.1 reader reads a stored 1.0 run cleanly (no failureDetail on its actions)", () => {
+  const root = tmpRoot();
+  try {
+    // Hand-build a 1.0 run dir (RunLogger now stamps 1.1, so a legacy run is constructed
+    // directly). The action event has NO failureDetail/failureDetailTruncated — the 1.1
+    // reader must tolerate their absence and the audit chain must still verify.
+    const runDir = path.join(root, "legacy-1.0");
+    fs.mkdirSync(path.join(runDir, "snapshots"), { recursive: true });
+    const yaml = SNAP.yaml;
+    const digest = digestSnapshot(yaml);
+    const refs = [...SNAP.refs];
+    const blob = {
+      snapshotId: "snapshot-001",
+      digest,
+      yaml,
+      refs,
+      elements: SNAP.elements.map((e) => ({ ref: e.ref, role: e.role, ...(e.name !== undefined ? { name: e.name } : {}) })),
+    };
+    fs.writeFileSync(path.join(runDir, "snapshots", "snapshot-001.json"), JSON.stringify(blob, null, 2));
+
+    const base = (seq: number) => ({ runLogSchemaVersion: "1.0", runId: "legacy-1.0", seq, ts: "2026-06-18T00:00:00.000Z" });
+    const lines: unknown[] = [
+      { ...base(1), type: "flow_start", flowId: "login", planHash: "sha256:plan", model: "claude-opus-4-8", entryUrl: "http://x/login" },
+      { ...base(2), type: "snapshot", snapshotId: "snapshot-001", snapshotDigest: digest, path: "snapshots/snapshot-001.json", kind: "pre_action", refCount: refs.length, stepId: "login:S1" },
+      { ...base(3), type: "action", decisionId: "decision-001", snapshotId: "snapshot-001", snapshotDigest: digest, ref: "e8", action: "click", refValidation: { valid: true, validatedBy: "harness" }, resolvedFrom: "snapshot-001", status: "executed", stepId: "login:S1" },
+      { ...base(4), type: "flow_end", executionStatus: "completed" },
+    ];
+    fs.writeFileSync(path.join(runDir, "events.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    fs.writeFileSync(
+      path.join(runDir, "run.json"),
+      JSON.stringify({
+        runLogSchemaVersion: "1.0",
+        runId: "legacy-1.0",
+        flowId: "login",
+        planHash: "sha256:plan",
+        model: "claude-opus-4-8",
+        mode: "headed",
+        startedAt: "2026-06-18T00:00:00.000Z",
+        finishedAt: "2026-06-18T00:00:01.000Z",
+        executionStatus: "completed",
+        pricingConfigId: "anthropic-2026-06",
+        totals: { promptTokens: 0, completionTokens: 0, costUsd: 0, latencyMs: 0, snapshotCount: 1, actionCount: 1, errorCount: 0, retryCount: 0 },
+      }, null, 2),
+    );
+
+    const { events, truncatedFinalLine } = readEvents(path.join(runDir, "events.jsonl"));
+    assert.equal(truncatedFinalLine, false);
+    for (const e of events) assert.equal(e.runLogSchemaVersion, "1.0"); // version preserved, never rewritten
+    const action = events.find((e) => e.type === "action") as ActionEvent;
+    assert.equal(action.failureDetail, undefined);
+    assert.equal(action.failureDetailTruncated, undefined);
+    // the audit chain still verifies a 1.0 run under the 1.1 reader
+    const report = verifyAuditChain(runDir);
+    assert.equal(report.ok, true);
+    assert.equal(report.checked, 1);
+    assert.equal(readManifest(runDir).runLogSchemaVersion, "1.0");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("readers accept supported run-log versions (1.0, 1.1) and reject an unknown future version", () => {
+  const root = tmpRoot();
+  try {
+    const p = path.join(root, "events.jsonl");
+    const ev = (v: string) =>
+      JSON.stringify({
+        runLogSchemaVersion: v,
+        runId: "r",
+        seq: 1,
+        ts: "2026-06-18T00:00:00.000Z",
+        type: "flow_start",
+        flowId: "f",
+        planHash: "sha256:plan",
+        model: "m",
+        entryUrl: "http://x/login",
+      }) + "\n";
+
+    // both supported versions parse cleanly
+    fs.writeFileSync(p, ev("1.0"));
+    assert.equal(readEvents(p).events.length, 1);
+    fs.writeFileSync(p, ev("1.1"));
+    assert.equal(readEvents(p).events.length, 1);
+
+    // an unknown future version is rejected with the stable unsupported-schema error
+    fs.writeFileSync(p, ev("2.0"));
+    assert.throws(() => readEvents(p), UnsupportedRunLogSchemaError);
+    assert.throws(() => readEvents(p), /unsupported runLogSchemaVersion "2\.0" \(supported: 1\.0, 1\.1\)/);
+
+    // the manifest reader gates the same way
+    const runDir = path.join(root, "run-future");
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(runDir, "run.json"),
+      JSON.stringify({ runLogSchemaVersion: "2.0", runId: "run-future", executionStatus: "completed" }),
+    );
+    assert.throws(() => readManifest(runDir), UnsupportedRunLogSchemaError);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

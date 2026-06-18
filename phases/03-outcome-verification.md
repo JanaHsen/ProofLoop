@@ -293,24 +293,24 @@ expensive to retrofit — hence the gate.
 infrastructure failure. Without it, BUG-007 collapses to a silent INCONCLUSIVE.
 *Next depends on it:* the resolver's non-completing-step path reads `failureDetail`.
 
-- [ ] Add `failureDetail?: string` and `failureDetailTruncated?: boolean` to `ActionEvent` in
+- [x] Add `failureDetail?: string` and `failureDetailTruncated?: boolean` to `ActionEvent` in
   the run-log schema. Bump `runLogSchemaVersion` to `"1.1"`.
-- [ ] In `engine/loop.ts`, when an executed element action returns `isError: true`, populate
+- [x] In `engine/loop.ts`, when an executed element action returns `isError: true`, populate
   `failureDetail` from `ToolResult.text`: **scrub first** (existing run-scoped redaction), **then
   truncate** to a bounded length from the end (preserve the leading diagnostic), setting
   `failureDetailTruncated` when clipped. Leave it absent on successful actions. Do **not** change
   control flow, termination, or guards — this is evidence capture only, no verdict logic.
-- [ ] Confirm readers still parse `"1.0"` records (the new fields are optional; `readEvents`,
+- [x] Confirm readers still parse `"1.0"` records (the new fields are optional; `readEvents`,
   `verifyAuditChain`, and any 1.1-aware reader must tolerate their absence).
-- [ ] Tests (these close the agent-reported Phase 2 coverage gap):
-  - [ ] actuator **throws** ⇒ `ACTION_FAILED` error event, no executed `action` event (unchanged).
-  - [ ] actuator returns `isError: true` ⇒ `action` event `status:"failed"`, `failureDetail`
+- [x] Tests (these close the agent-reported Phase 2 coverage gap):
+  - [x] actuator **throws** ⇒ `ACTION_FAILED` error event, no executed `action` event (unchanged).
+  - [x] actuator returns `isError: true` ⇒ `action` event `status:"failed"`, `failureDetail`
     populated, loop continues (unchanged termination behaviour).
-  - [ ] `failureDetail` is scrubbed (a seeded secret literal never appears) and truncated
+  - [x] `failureDetail` is scrubbed (a seeded secret literal never appears) and truncated
     (with `failureDetailTruncated:true`) on an over-long detail.
-  - [ ] `blocked`, `guard_tripped`, and in-loop `error` terminations each still produce exactly
+  - [x] `blocked`, `guard_tripped`, and in-loop `error` terminations each still produce exactly
     one `terminal` snapshot (assert against the real artifacts, not just status).
-  - [ ] a stored `"1.0"` events.jsonl still reads cleanly under the 1.1 reader.
+  - [x] a stored `"1.0"` events.jsonl still reads cleanly under the 1.1 reader.
 
 🚦 **HUMAN GATE:** the human reviews and freezes the 1.1 schema bump (the Phase 2 log schema was
 frozen at a gate; this additive change is re-frozen here).
