@@ -316,13 +316,15 @@ interface RunManifest {
 }
 ```
 
-- [ ] Do not use the word `outcome` for execution status — later phases reserve
-  outcome/verdict for application behavior.
-- [ ] A live run only ever writes `running → { completed | blocked | guard_tripped | error
+- [x] Do not use the word `outcome` for execution status — later phases reserve
+  outcome/verdict for application behavior. *(`run/schema.ts` uses `executionStatus`; no
+  `outcome`/verdict anywhere.)*
+- [x] A live run only ever writes `running → { completed | blocked | guard_tripped | error
   | cancelled }`. `crashed` is **reader-inferred**: if the process dies with status still
-  `running`, a reader classifies it as crashed from the event stream.
-- [ ] **Atomic finalize:** write the full replacement to a temp file, flush/close, then
-  rename to `run.json`.
+  `running`, a reader classifies it as crashed from the event stream. *(`finalize()`'s type
+  excludes `running`/`crashed`; `audit.ts` `inferCrashed()` is the only producer.)*
+- [x] **Atomic finalize:** write the full replacement to a temp file, flush/close, then
+  rename to `run.json`. *(`logger.ts` writes `run.json.tmp` then `renameSync`.)*
 
 **`events.jsonl`:**
 
@@ -341,12 +343,13 @@ Event types: `flow_start`, `flow_end`, `step_start`, `step_end`, `snapshot`,
 `llm_decision`, `action`, `error`, `retry`, `screenshot`, `guard_tripped`,
 `session_continuity`.
 
-- [ ] `seq` is assigned **only** by the harness, strictly increasing, from a single event
-  writer.
-- [ ] The writer appends one complete JSON object per line, flushes at defined boundaries
+- [x] `seq` is assigned **only** by the harness, strictly increasing, from a single event
+  writer. *(`RunLogger` is the single writer; `seq = ++counter` per `append()`.)*
+- [x] The writer appends one complete JSON object per line, flushes at defined boundaries
   and after critical events, preserves all complete lines after a crash, and treats **one
   truncated final line as a recoverable crash artifact** (not corruption — readers
-  tolerate it).
+  tolerate it). *(`appendFileSync` per event = each line flushed complete; `audit.ts`
+  `readEvents()` tolerates one truncated final line.)*
 
 **Snapshot→action audit chain (the Exit-criterion proof):**
 
@@ -366,44 +369,60 @@ reference-validation result. Example:
 }
 ```
 
-- [ ] `refValidatedAgainstSnapshot` (or its equivalent) is **always computed by the
-  harness and never accepted from the model**.
-- [ ] A later reader must be able to: load the referenced snapshot; verify its digest;
+- [x] `refValidatedAgainstSnapshot` (or its equivalent) is **always computed by the
+  harness and never accepted from the model**. *(`refValidation.validatedBy` is the literal
+  type `"harness"`; the loop computes it via `validateRef`, never reads it from the model.)*
+- [x] A later reader must be able to: load the referenced snapshot; verify its digest;
   confirm the ref existed; confirm the action used the same snapshot and ref. Log enough
-  to make that independently verifiable.
+  to make that independently verifiable. *(`audit.ts` `verifyAuditChain()` does exactly this
+  from stored artifacts; tested incl. ref-not-present + digest-tamper detection.)*
 
 **Boundary snapshots for Phase 3:**
 
-- [ ] Capture and store: the fresh snapshot used before every element-targeted action; a
+- [x] Capture and store: the fresh snapshot used before every element-targeted action; a
   **step-boundary** snapshot after every completed step (so Phase 3 can evaluate
   `(after step N)` criteria); and one **terminal** snapshot immediately before `flow_end`
-  (for criteria with no `after`).
+  (for criteria with no `after`). *(Schema + storage frozen: `recordSnapshot(..., kind)`
+  with `kind ∈ {pre_action, step_boundary, terminal}`; the loop emits all three at the
+  named points in Task 5.)*
 
 **Sensitive data handling:**
 
-- [ ] Never log passwords, API keys, tokens, or other sensitive typed values in clear
+- [x] Never log passwords, API keys, tokens, or other sensitive typed values in clear
   text. When the snapshot identifies a password/sensitive field, record
   `{ "value": "[REDACTED]", "valueLength": 11, "sensitive": true }`. Apply the same
-  redaction to **stored snapshots** if they expose entered values.
+  redaction to **stored snapshots** if they expose entered values. *(`run/redaction.ts`:
+  structural-first (password-type) + name-regex augmentation, fail-safe; record shape as
+  specified; `redactValuesInText` scrubs stored blobs before digesting. Structural signal
+  source + whether snapshots expose values finalized at Task 6; `valueLength` flagged as a
+  length-oracle to bucket/drop in hosted/Phase 6+.)*
 
 **Token and cost accounting:**
 
-- [ ] Store the **raw** model usage (prompt/input and completion/output tokens) as
+- [x] Store the **raw** model usage (prompt/input and completion/output tokens) as
   returned by the API. Compute `costUsd` from a **versioned pricing configuration** (no
   inline magic numbers), and retain `pricingConfigId` so Phase 7 can recompute cost from
-  raw usage.
+  raw usage. *(`llm_decision.usage` stores the full API usage verbatim incl.
+  `cache_creation_input_tokens`/`cache_read_input_tokens` even when zero; rates live in the
+  committed `config/pricing.anthropic-2026-06.json`; `computeCostUsd` recomputes from raw
+  usage + committed rates.)*
 
 **Ground-truth separation:**
 
-- [ ] `PROOFLOOP_BUGS` must never be: placed in the LLM prompt; exposed through the
+- [x] `PROOFLOOP_BUGS` must never be: placed in the LLM prompt; exposed through the
   decision context; used by the executor to change behavior; read from app source. The
   Phase 2 executor does not write bug-state ground truth into its manifest. If Phase 7
   later needs ground truth, the **outer** evaluation harness may write a separate,
   evaluator-owned `platform/runs/<runId>/ground-truth.json` that is inaccessible to the
-  action-deciding LLM and the Phase 2 execution logic.
+  action-deciding LLM and the Phase 2 execution logic. *(The manifest has no bug-state
+  field; the MCP subprocess env is `stripSensitiveEnv` (PROOFLOOP_/ANTHROPIC_ removed).)*
 
 🚦 **HUMAN GATE:** the human reviews and freezes the manifest, event, artifact-reference,
-redaction, pricing, and audit-chain schemas.
+redaction, pricing, and audit-chain schemas. ✅ *APPROVED (with the five decisions +
+enrichments folded in): runLogSchemaVersion "1.0"; planHash = sha256(serializeFlowPlan);
+structural-first fail-safe redaction (regex now, structural signal at Task 6); verbatim
+usage incl. cache tokens + committed versioned pricing file; schema-include /
+capture-none screenshots.)*
 
 ✅ **COMMIT:** `feat(platform): versioned append-only execution logging spine`
 

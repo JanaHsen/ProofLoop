@@ -1,0 +1,30 @@
+{
+  "pricingConfigId": "anthropic-2026-06",
+  "currency": "USD",
+  "unit": "per_million_tokens",
+  "source": "Anthropic claude-api reference (model table cached 2026-06-04); cache write = 1.25x input (5m TTL) / 2x input (1h TTL); cache read = 0.1x input (prompt-caching economics). Rates are committed so Phase 7 can recompute cost from raw usage even after public prices change.",
+  "notes": "cache_creation_input_tokens is priced at cacheWrite5m by default (the API's default TTL); the exact 5m/1h split, when prompt caching is enabled (a likely Phase 8 optimization), comes from the verbatim usage breakdown stored on each llm_decision event.",
+  "models": {
+    "claude-opus-4-8": {
+      "input": 5.0,
+      "output": 25.0,
+      "cacheWrite5m": 6.25,
+      "cacheWrite1h": 10.0,
+      "cacheRead": 0.5
+    },
+    "claude-sonnet-4-6": {
+      "input": 3.0,
+      "output": 15.0,
+      "cacheWrite5m": 3.75,
+      "cacheWrite1h": 6.0,
+      "cacheRead": 0.3
+    },
+    "claude-haiku-4-5": {
+      "input": 1.0,
+      "output": 5.0,
+      "cacheWrite5m": 1.25,
+      "cacheWrite1h": 2.0,
+      "cacheRead": 0.1
+    }
+  }
+}
