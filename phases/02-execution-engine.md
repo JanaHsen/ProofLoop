@@ -474,9 +474,15 @@ protected product page; sensitive values were redacted. **No acceptance criterio
 evaluated.**
 
 🚦 **HUMAN GATE:** the human watches the headed run and inspects the
-snapshot→ref→action chain.
+snapshot→ref→action chain. ✅ *APPROVED — `login` ran headed to `executionStatus:
+completed`; `verifyAuditChain` ok (checked 6); entry via `BASE_URL + /login`; username/
+password refs from live snapshots, all `validatedBy: harness`; no selector/coordinate
+action; authenticated session survived `/login → / → /products`. Credential-residual
+hardening landed: `step_start` stores `stepTextHash` (not text); literal-seeded run-scoped
+masking + structural redaction → `password123` appears in NO file under the run directory
+(live scan), while `alice`/product/amount stay visible. No criterion evaluated.*
 
-✅ **COMMIT:** `test(platform): headed login bootstrap run`
+✅ **COMMIT:** `test(platform): headed login bootstrap run`  *(committed: `1715c01`)*
 
 ### Task 7 — Phase 2 exit run: `add-to-cart`
 
