@@ -1,0 +1,22 @@
+{
+  "runLogSchemaVersion": "1.1",
+  "runId": "buggy-cart-bug002",
+  "flowId": "bug002-cart",
+  "planHash": "sha256:bug002-synthetic-plan",
+  "model": "claude-sonnet-4-6",
+  "mode": "headed",
+  "startedAt": "2026-06-19T00:00:00.000Z",
+  "finishedAt": "2026-06-19T00:00:00.000Z",
+  "executionStatus": "completed",
+  "pricingConfigId": "anthropic-2026-06",
+  "totals": {
+    "promptTokens": 0,
+    "completionTokens": 0,
+    "costUsd": 0,
+    "latencyMs": 0,
+    "snapshotCount": 2,
+    "actionCount": 0,
+    "errorCount": 0,
+    "retryCount": 0
+  }
+}

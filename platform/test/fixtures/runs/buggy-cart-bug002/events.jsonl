@@ -1,0 +1,6 @@
+{"runLogSchemaVersion":"1.1","runId":"buggy-cart-bug002","seq":1,"ts":"2026-06-19T00:00:00.000Z","type":"flow_start","flowId":"bug002-cart","planHash":"sha256:bug002-synthetic-plan","model":"claude-sonnet-4-6","entryUrl":"http://x/cart"}
+{"runLogSchemaVersion":"1.1","runId":"buggy-cart-bug002","seq":2,"ts":"2026-06-19T00:00:00.000Z","type":"step_start","stepId":"bug002-cart:S1","ordinal":1,"stepTextHash":"sha256:s1"}
+{"runLogSchemaVersion":"1.1","runId":"buggy-cart-bug002","seq":3,"ts":"2026-06-19T00:00:00.000Z","type":"snapshot","snapshotId":"snapshot-001","snapshotDigest":"sha256:5245a6716b7f452f4455f794bf5b23877824680c74bd6dd404f5d3e50882d477","path":"snapshots/snapshot-001.json","kind":"step_boundary","refCount":43,"stepId":"bug002-cart:S1"}
+{"runLogSchemaVersion":"1.1","runId":"buggy-cart-bug002","seq":4,"ts":"2026-06-19T00:00:00.000Z","type":"step_end","stepId":"bug002-cart:S1"}
+{"runLogSchemaVersion":"1.1","runId":"buggy-cart-bug002","seq":5,"ts":"2026-06-19T00:00:00.000Z","type":"snapshot","snapshotId":"snapshot-002","snapshotDigest":"sha256:5245a6716b7f452f4455f794bf5b23877824680c74bd6dd404f5d3e50882d477","path":"snapshots/snapshot-002.json","kind":"terminal","refCount":43}
+{"runLogSchemaVersion":"1.1","runId":"buggy-cart-bug002","seq":6,"ts":"2026-06-19T00:00:00.000Z","type":"flow_end","executionStatus":"completed"}

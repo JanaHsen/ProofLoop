@@ -350,7 +350,7 @@ frozen at a gate; this additive change is re-frozen here).
 *Serves:* the reasoning step — the new, measured non-deterministic component.
 *Next depends on it:* the writer records its output; the matrix exercises it.
 
-- [ ] Implement a verifier that, per criterion, sends the verifier model (from
+- [x] Implement a verifier that, per criterion, sends the verifier model (from
   `PROOFLOOP_VERIFIER_MODEL`, key from env, model + params logged) a schema-constrained request
   containing **only** the criterion text and the resolved evidence window, and returns
   `{ verdict, inconclusiveDetail?, observations[], reasoning }`. The prompt frames the task as
@@ -358,24 +358,45 @@ frozen at a gate; this additive change is re-frozen here).
   navigation is irrelevant, and requires each observation to cite the **verbatim** text and the
   **most specific** `snapshotId`/`ref` it was read from. The verifier receives no execution
   status, no step text, no decider rationale, no ledger, no bug state.
-- [ ] After each call, the **harness** computes `CitationValidation` for every observation from
+  *(`src/verify/verifier.ts` — `AnthropicVerifier` + pure `finalizeCriterion`; input from `src/verify/prompt.ts`.)*
+- [x] After each call, the **harness** computes `CitationValidation` for every observation from
   the stored artifacts (provided / digest / ref-present / observedText-contained-in-accessible-name).
   A verdict resting on any invalid citation is downgraded to
   `INCONCLUSIVE / ERROR / VERIFICATION / INVALID_CITATION`. The validation is harness-computed and
-  never read from the model.
-- [ ] Apply the D23 non-completing-step rule when the resolver returned failed-action evidence
-  rather than a clean boundary snapshot.
-- [ ] Run the verifier at the lowest-variance configuration the API supports; record exact model
-  and params. Treat low variance as configuration, not a determinism guarantee.
-- [ ] Tests with a **mocked verifier model** (no live spend): a PASS path with valid citations; a
+  never read from the model. *(`src/verify/citation.ts`; every observation + its validation is
+  preserved in the record, never discarded — including a failed one.)*
+- [x] Apply the D23 non-completing-step rule when the resolver returned failed-action evidence
+  rather than a clean boundary snapshot. *(A non-completing FAIL requires ≥1 valid snapshot AND
+  ≥1 valid event observation, else `INVALID_CITATION`.)*
+- [x] Run the verifier at the lowest-variance configuration the API supports; record exact model
+  and params. Treat low variance as configuration, not a determinism guarantee. *(Forced single
+  `record_verdict` tool call, `disable_parallel_tool_use`; no sampling params; thinking off;
+  recorded verbatim in `VERIFIER_PARAMS`.)*
+- [x] Tests with a **mocked verifier model** (no live spend): a PASS path with valid citations; a
   FAIL path; an invalid-citation input ⇒ downgrade to `INVALID_CITATION`; a malformed model
   response ⇒ `VERIFIER_SCHEMA_ERROR`; a hygiene test asserting the assembled prompt for a *buggy*
-  state contains **no** execution-status / success field.
+  state contains **no** execution-status / success field. *(`test/verifier.test.ts`, 13 tests.)*
 
 🚦 **HUMAN GATE:** the human reviews the verifier prompt and output contract (especially the
 no-success-signal hygiene and the citation-downgrade policy) **before** the live model is wired,
 and selects the **provisional** verifier model by running a small replay set across candidate
 models against the frozen fixture. ✅ record the chosen model + params and the rationale.
+
+> **Gate record (selection approved).** Provisional verifier model: **`claude-opus-4-8`**
+> (set explicitly via `PROOFLOOP_VERIFIER_MODEL` — **no silent default**; a missing value fails
+> loudly at the live call site via `requireVerifierModel()`; priced in `pricing.anthropic-2026-06.json`).
+> **Params:** `max_tokens=2048`; forced single `record_verdict` tool call with
+> `disable_parallel_tool_use`; no sampling params (temperature/top_p/top_k are removed on the
+> 4.6+ models — 400 if sent); extended thinking off; default effort.
+> **Rationale:** on the 5-case × 3-rep frozen replay set, opus-4-8 scored **15/15** correct with
+> exactly one valid tool call every time; sonnet-4-6 scored 12/15 (disqualified by a persistent
+> 3/3 false-FAIL on the clean proportional-tax case). Cost/latency accepted.
+> **Known model-compliance risk:** in a *pre-canonical* opus trial, one INCONCLUSIVE reply omitted
+> the required `AMBIGUOUS_EVIDENCE` detail (1/3); the canonical run was clean (0/3). The harness
+> treats a detail-less INCONCLUSIVE strictly — it becomes
+> `INCONCLUSIVE / ERROR / VERIFICATION / VERIFIER_SCHEMA_ERROR` and is **never** invented — so the
+> risk is contained, but it is logged here as a model-compliance (not harness) risk to measure in
+> Phase 8. The clean 3/3 canonical result is the model-selection evidence.
 
 ✅ **COMMIT:** `feat(platform): per-criterion outcome verifier + citation validation`
 
