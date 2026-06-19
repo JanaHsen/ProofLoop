@@ -400,13 +400,30 @@ human gate. Do not proceed until approved.
 *Serves:* the deterministic, repeatable parity check — the provable core of D34.
 *Next depends on it:* it is the snapshot-equivalence half of the exit criterion.
 
-- [ ] Drive the mandatory controlled checkpoints in both modes **through the production
+- [x] Drive the mandatory controlled checkpoints in both modes **through the production
   mode-capable launcher** (Task 3). Remove the Task 2 investigation-only launcher (preferred)
   unless it was explicitly converted into this committed test infrastructure at the Task 4
-  gate.
-- [ ] Apply the frozen Task 4 normalizer; assert semantic equivalence at every checkpoint;
-  on mismatch, surface the structured diff.
-- [ ] Test runs offline against the clean SUT, with no LLM in the comparison loop.
+  gate. *(Both modes go through `PlaywrightMcpClient` → `McpClientOptions.mode` →
+  `resolveLaunchArgs`. The Task 2 `InvestigationMcpClient` subclass + its runner + its test
+  were **removed**; `FINDINGS.md` kept as the historical record; mode-agnostic capture moved
+  to `platform/test/parity/checkpoint-capture.ts`. No alternate mode-launch seam remains.)*
+- [x] Apply the frozen Task 4 normalizer; assert semantic equivalence at every checkpoint;
+  on mismatch, surface the structured diff. *(`compareSnapshotYaml(headed, headless, {left,
+  right})`; allow-list still empty; a mismatch throws `CheckpointParityError` with the diff.)*
+- [x] Test runs offline against the clean SUT, with no LLM in the comparison loop.
+
+> **Task 6 RESULT (2026-06-19) — both checkpoints GREEN through the production launcher.**
+> Clean SUT (`PROOFLOOP_BUGS` empty, `bugs:[]`). Both modes launched via the production
+> `PlaywrightMcpClient`/`resolveLaunchArgs` (no investigation subclass, no overridden args).
+> - `/login`: headed `sha256:dad365c4…0626` == headless `sha256:dad365c4…0626` — byteEqual=true,
+>   digestEqual=true, `compareSnapshotYaml.equal=true`, differences=0.
+> - `/form`: headed `sha256:291973ef…7725` == headless `sha256:291973ef…7725` — byteEqual=true,
+>   digestEqual=true, `compareSnapshotYaml.equal=true`, differences=0.
+> - **Zero LLM/API participation** (no decider/verifier/summarizer imported; `ANTHROPIC_API_KEY`
+>   not read). The frozen dropped-field allow-list **remained empty**. Digests match the Task 2
+>   findings exactly, confirming the production path reproduces the observed snapshots.
+> - Live command: `PROOFLOOP_LIVE_MCP=1 BASE_URL=http://localhost:3000 node --require
+>   ts-node/register/transpile-only --test test/checkpoint-parity-live.test.ts` → 1 passed.
 
 ✅ **COMMIT:** `test(platform): deterministic cross-mode checkpoint parity`
 
@@ -492,7 +509,7 @@ presentation artifacts before approval.
 - [x] Normalizer is closed-by-default, field-aware, derived only from Task 2 deltas, frozen at
   a gate, and passes the full negative-guard suite; it emits structured diffs.
 - [x] D32 isolation proven by code inspection plus targeted tests.
-- [ ] Controlled checkpoints are semantically equivalent across modes after the frozen
+- [x] Controlled checkpoints are semantically equivalent across modes after the frozen
   normalization, asserted deterministically and offline.
 - [ ] One clean flow runs headed and one headless, both fresh under `1.2`, both complete, both
   artifacts verify, both verdicts match.
