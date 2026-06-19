@@ -404,18 +404,28 @@ models against the frozen fixture. ✅ record the chosen model + params and the 
 *Serves:* the Phase 3 deliverable — a finished run becomes a verdict artifact.
 *Next depends on it:* Tasks 6–7 read these records; Phases 4/7/8 parse them.
 
-- [ ] Implement the writer: load the run manifest, re-parse `fixtures/flows/<flowId>.flow.md`
+- [x] Implement the writer: load the run manifest, re-parse `fixtures/flows/<flowId>.flow.md`
   deterministically, recompute `planHash`, and **assert it equals** `manifest.planHash` (fail
   loud if not — the criteria must match the executed plan). Resolve evidence, run the verifier
   per criterion, aggregate (D23), and write
   `platform/runs/<runId>/evaluations/<evaluationId>/evaluation.json` with an ordered
   `evaluationId` (a single-writer counter, no randomness). Record verifier model/params, totals,
-  and the per-criterion evidence set actually provided.
-- [ ] CLI: `npm run verify -- --run <runId>` (flow derived from `manifest.flowId`; never reads
-  `app/` source, never the ledger, never `PROOFLOOP_BUGS`/`PROOFLOOP_DEBUG_TOKEN`).
-- [ ] Tests: end-to-end over the frozen fixture producing a complete, schema-valid record with a
+  and the per-criterion evidence set actually provided. *(`src/verify/writer.ts`:
+  `writeEvaluation` — `Verifier` + clock injected for mocked, zero-spend tests; planHash
+  mismatch throws `PlanHashMismatchError`; a resolver short-circuit becomes INCONCLUSIVE carrying
+  the resolver's ERROR detail with NO verifier call; `nextEvaluationId` is `eval-NNN`, one past
+  the highest on disk; totals recompute from raw usage + the versioned pricing config; refuses to
+  overwrite an existing eval dir.)*
+- [x] CLI: `npm run verify -- --run <runId>` (flow derived from `manifest.flowId`; never reads
+  `app/` source, never the ledger, never `PROOFLOOP_BUGS`/`PROOFLOOP_DEBUG_TOKEN`). *(`src/verify-cli.ts`
+  + `verify` script in `package.json`; constructs the live `AnthropicVerifier` only after
+  `requireVerifierModel` (no silent default) and an `ANTHROPIC_API_KEY` check.)*
+- [x] Tests: end-to-end over the frozen fixture producing a complete, schema-valid record with a
   correct `flowVerdict`; a planHash mismatch ⇒ fail loud; `evaluationId` increments across two
-  passes without overwriting.
+  passes without overwriting. *(`test/writer.test.ts`, 5 tests — all mocked, no live Opus call:
+  end-to-end PASS record (schema-valid, on-disk round-trip, totals math); any-FAIL ⇒ FAIL;
+  planHash mismatch fails loud and writes nothing; evaluationId increments without overwrite;
+  `nextEvaluationId` counter.)*
 
 ✅ **COMMIT:** `feat(platform): verdict aggregation + evaluation record writer`
 
