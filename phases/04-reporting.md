@@ -692,7 +692,7 @@ presentation/
 * [x] Confirm HTML opens locally with the network disabled.
 * [x] Confirm relative links remain valid.
 * [x] Confirm reports remain understandable without the AI summary.
-* [ ] If summaries were generated, review every sentence for: *(N/A — no AI summaries generated; Task 2 deferred as optional)*
+* [x] If summaries were generated, review every sentence for: *(four summaries reviewed at the reopened gate — all clear)*
 
   * verdict drift;
   * unsupported accuracy claims;
@@ -714,8 +714,16 @@ Do not self-certify or commit presentation artifacts before approval.
 > `comparison.html` and the four per-run `report.html` pages — content hierarchy, redaction,
 > citation simplification, timeline treatment, human-verified provenance, palette, and
 > responsive behavior. Presentation artifacts committed (see below).
+>
+> ✅ **Gate REOPENED + RE-APPROVED (2026-06-19) for the optional AI summaries (Task 2).**
+> After an identifier-leak fix (`e9ce02a` — snapshot IDs/refs scrubbed from the summary input),
+> the four `--summary` reports were regenerated (one call each, no retries) and reviewed from
+> scratch: zero raw snapshot IDs/refs, every figure sourced from recorded reasoning/validated
+> observations, C2 named as the FAIL with C3 reconciliation preserved, verdicts attributed as
+> recorded facts, non-authoritative banner present. Committed in `71abb27`.
 
 ✅ **COMMIT:** `docs(presentation): commit Phase 3 demo reports + comparison` — **done.**
+✅ **COMMIT (reopened, AI summaries):** `docs(presentation): add grounded AI summaries to Phase 3 demo reports` (`71abb27`) — **done.**
 
 ---
 
