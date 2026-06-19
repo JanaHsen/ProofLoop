@@ -59,63 +59,95 @@ export const DECISION_TOOL_DESCRIPTION =
   "— ref must be one of the refs in the current snapshot.";
 
 /**
- * Base JSON Schema for the decision tool. Conditional requirements (action needs
- * ref+rationale, type needs value, …) are enforced by parseDecision, not the schema —
- * tool-use providers honor `enum`/`type` reliably but not cross-field conditionals.
+ * Base JSON Schema for the decision tool — a DISCRIMINATED contract (`oneOf`), one
+ * complete branch per decision kind. Each branch makes its OWN fields required: a click
+ * needs `action:"click"`+`ref`, a type needs `action:"type"`+`ref`+`value`, and neither
+ * `action` nor `ref` may appear on a step_complete/blocked branch (`additionalProperties:
+ * false`). This is deliberately stricter than a single generic action object with an
+ * optional `action`: a `kind:"action"` that omits `action`, or carries an unsupported
+ * verb, no longer satisfies any branch at the provider-visible schema layer — closing the
+ * hole that let a malformed action decision through the provider only to be rejected later.
+ *
+ * parseDecision remains the AUTHORITATIVE runtime backstop. Providers honor `enum`/
+ * `required` far more reliably than cross-field conditionals, but the harness never trusts
+ * the provider — every returned decision is re-validated by parseDecision before dispatch.
  */
 export const DECISION_TOOL_SCHEMA = {
   type: "object",
-  additionalProperties: false,
-  properties: {
-    kind: {
-      type: "string",
-      enum: ["action", "step_complete", "blocked"],
-      description: "Which kind of decision this is.",
+  oneOf: [
+    {
+      // click — activate the element named by `ref`; carries no value.
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        kind: { type: "string", enum: ["action"], description: "An element action." },
+        action: { type: "string", enum: ["click"], description: "Click the element with the given ref." },
+        ref: {
+          type: "string",
+          description: "The eN ref of the target element, taken verbatim from the current snapshot.",
+        },
+        rationale: { type: "string", description: "A one-sentence reason." },
+      },
+      required: ["kind", "action", "ref", "rationale"],
     },
-    action: {
-      type: "string",
-      enum: ["click", "type"],
-      description: "For kind=action only: the element action to perform.",
+    {
+      // type — enter `value` into the element named by `ref`.
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        kind: { type: "string", enum: ["action"], description: "An element action." },
+        action: { type: "string", enum: ["type"], description: "Type the given value into the element with the given ref." },
+        ref: {
+          type: "string",
+          description: "The eN ref of the target element, taken verbatim from the current snapshot.",
+        },
+        value: { type: "string", description: "The text to type." },
+        rationale: { type: "string", description: "A one-sentence reason." },
+      },
+      required: ["kind", "action", "ref", "value", "rationale"],
     },
-    ref: {
-      type: "string",
-      description:
-        "For kind=action only: the eN ref of the target element, taken verbatim " +
-        "from the current snapshot.",
+    {
+      // step_complete — the requested action happened and a response was observed.
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        kind: { type: "string", enum: ["step_complete"], description: "The step's action was performed and the page responded." },
+        rationale: { type: "string", description: "A one-sentence reason." },
+      },
+      required: ["kind", "rationale"],
     },
-    value: {
-      type: "string",
-      description: "For action=type only: the text to type.",
+    {
+      // blocked — last resort: the step cannot proceed.
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        kind: { type: "string", enum: ["blocked"], description: "The step cannot proceed." },
+        reason: { type: "string", description: "Why the step cannot proceed." },
+      },
+      required: ["kind", "reason"],
     },
-    rationale: {
-      type: "string",
-      description: "For kind=action or step_complete: a one-sentence reason.",
-    },
-    reason: {
-      type: "string",
-      description: "For kind=blocked only: why the step cannot proceed.",
-    },
-  },
-  required: ["kind"],
+  ],
 } as const;
 
 /**
  * The decision tool schema with the `ref` field constrained to the refs actually in
- * the current snapshot — a steering aid that cuts invalid-ref retries. It NEVER
- * replaces validateRef: the harness check against the snapshot remains authoritative.
+ * the current snapshot — a steering aid that cuts invalid-ref retries, injected into the
+ * two branches that carry a `ref` (click, type). It NEVER replaces validateRef: the
+ * harness check against the snapshot remains authoritative.
  */
 export function buildDecisionToolSchema(
   refs: Iterable<string>,
 ): Record<string, unknown> {
   const refList = [...refs];
-  const schema: Record<string, unknown> = JSON.parse(
-    JSON.stringify(DECISION_TOOL_SCHEMA),
-  );
+  const schema = JSON.parse(JSON.stringify(DECISION_TOOL_SCHEMA)) as {
+    oneOf: Array<{ properties: Record<string, { enum?: unknown }> }>;
+  };
   if (refList.length > 0) {
-    (schema.properties as Record<string, Record<string, unknown>>).ref.enum =
-      refList;
+    for (const branch of schema.oneOf) {
+      if (branch.properties.ref) branch.properties.ref.enum = refList;
+    }
   }
-  return schema;
+  return schema as unknown as Record<string, unknown>;
 }
 
 // --- schema validation of the returned decision -----------------------------------
