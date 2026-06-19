@@ -641,29 +641,58 @@ Done within the gate-frozen D38/D39 contract; tests + `npm run typecheck` green
 ---
 
 ### Task 3 — Deterministic `report:ci` aggregator
-* [ ] Add `platform/src/report-ci-cli.ts` and a `report:ci` script, mirroring
+* [x] Add `platform/src/report-ci-cli.ts` and a `report:ci` script, mirroring
   `report-compare-cli.ts` conventions. CLI:
   ```bash
   npm run report:ci -- --results <ci-results.json> --out-dir <dir>
   ```
-* [ ] Read `ci-results.json`. For each entry:
+* [x] Read `ci-results.json`. For each entry:
   * `stage: "complete"` → read the authoritative `report.json` at `reportPath`;
     take the flow verdict, per-criterion verdicts, and decider/verifier cost+latency
     from it (kept **separate**, D31). Populate `nonPassCriteria` for `FAIL` /
     `INCONCLUSIVE`, tagging each with its own `outcome` so a `FAIL` is never
     presented as merely inconclusive nor an `INCONCLUSIVE` as a failure.
   * otherwise → emit an `ERROR` row carrying `errorClass`; **invent no verdict**.
-* [ ] Emit `summary.json` (deterministic, stable key order, no timestamps,
+* [x] Emit `summary.json` (deterministic, stable key order, no timestamps,
   byte-identical across two identical runs) and `summary.md` (escaped; hidden
   `<!-- proofloop-ci -->` marker; regression-vs-could-not-clear distinction; separate
   decider/verifier cost rollup; artifact links; the mandatory single-run caveat).
-* [ ] `allPass` computed per the data contract; **never** derived from Markdown.
-* [ ] Make **no** LLM call. (CI AI summary is off — D-note in Out of scope.)
-* [ ] Tests with fixtures: all-`PASS`; one `FAIL` (non-pass criteria surfaced,
+* [x] `allPass` computed per the data contract; **never** derived from Markdown.
+* [x] Make **no** LLM call. (CI AI summary is off — D-note in Out of scope.)
+* [x] Tests with fixtures: all-`PASS`; one `FAIL` (non-pass criteria surfaced,
   tagged `outcome: "FAIL"`); one `INCONCLUSIVE` (tagged `outcome: "INCONCLUSIVE"`,
   not mislabelled as failed); one pipeline `ERROR` (no `report.json`); a mixed set;
   escaping of flow/criterion/error strings; `summary.json` byte-identical across two
   runs; `allPass` independent of `summary.md`.
+
+#### Task 3 — implementation notes (2026-06-20)
+
+* **Library:** `platform/src/ci/report-ci.ts` → `aggregateCiResults({ resultsPath, repoRoot? })`.
+  Returns `{ summary, summaryJson, summaryMd }`. `repoRoot` defaults from `__dirname` (never
+  `process.cwd()`). Validates the entire `ci-results.json` before touching any report file.
+* **CLI:** `platform/src/report-ci-cli.ts` → `reportCiCli(argv, deps?)` (injectable seams for
+  `aggregate`/`mkdir`/`writeFile`/`out`/`err`). Exits `0` whenever both artifacts are written —
+  even for non-green aggregates. Non-zero only on: bad args (2), malformed input / integrity
+  failure (1), write failure (1), uncaught crash.
+* **`ci-results.json` validation:** strict JSON array; each entry checked for unknown keys,
+  valid stage, stage-appropriate required fields, and contradictions (`complete` + `errorClass`,
+  `run` + `runId`, etc.). Duplicate `flowPath` rejected. `reportPath` rejected if absolute
+  (posix and win32) or if `path.relative(repoRoot, resolved)` starts with `..`.
+* **Report reading:** reads `reportSchemaVersion`, asserts join (`source.runId` ===
+  `entry.runId`, `source.evaluationId` === `entry.evaluationId`), extracts
+  `verification.flowVerdict`, per-criterion verdicts/text/reasoning, `inconclusiveDetail`,
+  and `execution`/`verification` cost+latency. Never re-evaluates evidence.
+* **Verdict distinction:** FAIL criterion → `outcome:"FAIL"`, reason = `reasoning`. INCONCLUSIVE
+  criterion → `outcome:"INCONCLUSIVE"`, reason = `inconclusiveDetail.explanation` (if present)
+  else `reasoning`. MD: FAIL → "detected behavioral regression"; INCONCLUSIVE → "not cleared by
+  the platform"; ERROR → "no trustworthy verdict produced". Never conflated.
+* **`errorMessage` never forwarded:** read from input but intentionally absent from `summary.json`
+  and `summary.md`; only `errorClass` (harness-authored safe identifier) appears in output.
+* **`escapeMd`:** escapes `\`, `&`, `<`, `>`, `` ` ``, `[`, `]`, `|`, and replaces newlines with
+  spaces. Applied to EVERY interpolated artifact-derived value — prevents comment injection,
+  heading injection, pipe-breaking, and bracket-link injection.
+* **`npm test`:** 377 pass, 3 pre-existing `-live` skips, 0 fail (+36 vs Task 2);
+  `npm run typecheck` clean.
 
 ✅ **COMMIT:** `feat(platform): deterministic report:ci aggregation (summary.json + summary.md)`
 
@@ -816,9 +845,9 @@ Do not self-certify. Do not wire `pull_request` before approval.
 * [x] D38 exit-code contract implemented and tested across all three CLIs.
 * [x] `platform/config/ci-flows.json` tracked, loads to the five flows, contains no
   ground truth.
-* [ ] `report:ci` emits deterministic `summary.json` (byte-identical across two runs)
+* [x] `report:ci` emits deterministic `summary.json` (byte-identical across two runs)
   and escaped `summary.md`; `allPass` never derived from Markdown; no LLM call.
-* [ ] Pipeline `ERROR` flows are represented without inventing a verdict; `FAIL` /
+* [x] Pipeline `ERROR` flows are represented without inventing a verdict; `FAIL` /
   `INCONCLUSIVE` carry their criteria; decider/verifier costs separate.
 * [ ] Workflow runs on `workflow_dispatch`; serial flows; loop continues past a
   failing flow; preflight fails fast; `/health` polled; SUT torn down.
