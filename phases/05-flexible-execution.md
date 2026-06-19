@@ -326,12 +326,15 @@ through it.
 *Serves:* the parity oracle — the single most safety-critical piece of this phase.
 *Next depends on it:* Task 6's checkpoint comparison consumes the frozen normalizer.
 
-- [ ] Implement a **field-aware** normalizer over the parsed, already-scrubbed accessibility
+- [x] Implement a **field-aware** normalizer over the parsed, already-scrubbed accessibility
   tree. Its dropped-field set is a **closed allow-list** derived **only** from the Task 2
   findings document. Anything not on the list is significant.
-- [ ] The normalizer emits a structured, human-readable diff: field path, headed value,
-  headless value — never a bare boolean.
-- [ ] **Negative-guard suite (minimum):**
+  *(`platform/src/parity/snapshot-parity.ts`; allow-list `PARITY_DROPPED_FIELDS` is **empty**.)*
+- [x] The normalizer emits a structured, human-readable diff: field path, headed value,
+  headless value — never a bare boolean. *(`SnapshotParityResult { equal, differences[] }`,
+  generic `left`/`right` + optional mode labels; `kind` ∈ added/removed/changed/type_changed.)*
+- [x] **Negative-guard suite (minimum)** — all implemented and passing, plus extras
+  (selected/ordering/active/cursor/ref/unknown-removed/unknown-changed/scalar-type = 16 total):
 
   ```text
   accessible name changed       → mismatch
@@ -344,12 +347,34 @@ through it.
   unknown field introduced       → mismatch until explicitly reviewed
   ```
 
-- [ ] **Positive tests:** the specific mode-incidental deltas observed in Task 2 normalize to
-  equality; nothing outside the observed-and-approved set is silently dropped.
+- [x] **Positive tests:** the specific mode-incidental deltas observed in Task 2 normalize to
+  equality; nothing outside the observed-and-approved set is silently dropped. *(Task 2 observed
+  ZERO deltas → committed sanitized `/login` + `/form` fixtures compare equal; determinism +
+  empty-frozen-list + no-`normalizeForProgress` proofs included.)*
 
 🚦 **HUMAN GATE:** the human reviews and **freezes** the normalization allow-list and the
 negative-guard suite. The allow-list is a frozen contract; widening it later requires a new
 human gate. Do not proceed until approved.
+
+> ✅ **APPROVED 2026-06-19 — allow-list + negative-guard + raw-fidelity suites FROZEN.**
+> - Task 2 observed **no** mode deltas (`/login` + `/form`: byte-identical scrubbed YAML,
+>   matching digests, byte-identical same-mode control; `[ref]/[active]/[cursor]` present but
+>   invariant). Provenance: [`FINDINGS.md`](../platform/test/investigation/FINDINGS.md).
+> - The frozen dropped-field allow-list `PARITY_DROPPED_FIELDS` is **empty** and immutable
+>   (`Object.freeze([])`); widening it requires editing the constant, the negative-guard tests,
+>   this Phase 5 doc, and passing a **new** human gate.
+> - **All** fields — including refs, active, cursor, and any unknown/new field — remain
+>   significant; comparison is a field-aware deep diff over the full surface (closed by default).
+> - The contract is **field-aware semantic comparison plus a closed raw-source fallback**:
+>   the parsed model is field-aware but not byte-lossless, so `compareSnapshotYaml` appends a
+>   deterministic raw line diff when the models agree but the scrubbed source bytes differ.
+>   With the allow-list empty, **any** byte difference in the scrubbed source ⇒ `equal: false`
+>   (spacing, blank lines, quoting/escaping, duplicate bracket syntax, line endings).
+> - The negative-guard suite (16 cases) proves meaningful changes — name, disabled, value,
+>   checked, selected, role, element add/remove, ordering, active, cursor, ref, unknown
+>   add/remove/change, scalar type — still mismatch with a structured diff at the correct path;
+>   a raw-fidelity suite (8 cases) proves parser-normalized source differences still mismatch.
+> - `normalizeForProgress` is neither imported nor reused (asserted by test).
 
 ✅ **COMMIT:** `feat(platform): frozen field-aware snapshot-parity normalizer + negative guards`
 
@@ -460,7 +485,7 @@ presentation artifacts before approval.
 - [x] Every version-aware reader accepts `1.0`/`1.1`/`1.2`; a stored `1.1` record still reads.
 - [x] `CLAUDE.md` updated (human-gated) for the `1.2` schema, the mode fields, and the CLI
   contract.
-- [ ] Normalizer is closed-by-default, field-aware, derived only from Task 2 deltas, frozen at
+- [x] Normalizer is closed-by-default, field-aware, derived only from Task 2 deltas, frozen at
   a gate, and passes the full negative-guard suite; it emits structured diffs.
 - [ ] D32 isolation proven by code inspection plus targeted tests.
 - [ ] Controlled checkpoints are semantically equivalent across modes after the frozen
