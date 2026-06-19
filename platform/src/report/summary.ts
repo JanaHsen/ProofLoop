@@ -104,6 +104,71 @@ export type SummaryOutcome =
 /** The two harness-owned inconclusive codes whose verifier reasoning must NOT be summarized. */
 const REASONING_SUPPRESSED_CODES = new Set(["INVALID_CITATION", "VERIFIER_SCHEMA_ERROR"]);
 
+/** Identifier token characters (letters, digits, `_`, `-`) — character checks, NOT a shape regex. */
+function isTokenChar(ch: string): boolean {
+  return (
+    (ch >= "0" && ch <= "9") ||
+    (ch >= "a" && ch <= "z") ||
+    (ch >= "A" && ch <= "Z") ||
+    ch === "_" ||
+    ch === "-"
+  );
+}
+
+/**
+ * Replace each seeded literal with its placeholder — LONGEST-FIRST and only when the match is a
+ * whole token (both neighbours are non-token characters). This is the same literal-seeded
+ * approach as the Phase 2 credential masking (run/redaction), NOT a shape regex; the
+ * longest-first + token-boundary rule means a short ref like "e3" can neither clobber a
+ * substring of "e35" nor hit a fragment of an unrelated token (e.g. "code3").
+ */
+function maskLiteralTokens(
+  text: string,
+  entries: Array<{ literal: string; placeholder: string }>,
+): string {
+  const sorted = entries
+    .filter((e) => e.literal.length > 0)
+    .sort((a, b) => b.literal.length - a.literal.length);
+  let out = text;
+  for (const { literal, placeholder } of sorted) {
+    let result = "";
+    let i = 0;
+    for (;;) {
+      const idx = out.indexOf(literal, i);
+      if (idx === -1) {
+        result += out.slice(i);
+        break;
+      }
+      const before = idx > 0 ? out[idx - 1] : "";
+      const after = idx + literal.length < out.length ? out[idx + literal.length] : "";
+      if (!isTokenChar(before) && !isTokenChar(after)) {
+        result += out.slice(i, idx) + placeholder; // whole-token match → mask
+      } else {
+        result += out.slice(i, idx + literal.length); // substring of a larger token → leave intact
+      }
+      i = idx + literal.length;
+    }
+    out = result;
+  }
+  return out;
+}
+
+/**
+ * Mask contract-excluded identifiers — snapshot IDs (`[snapshot]`) and element refs (`[ref]`) —
+ * out of free text before it can reach the summarizer through any field. Literal-seeded from
+ * the recorded data (see `buildSummaryInput`), never inferred by shape.
+ */
+function maskIdentifierLiterals(
+  text: string,
+  snapshotIds: Set<string>,
+  refs: Set<string>,
+): string {
+  const entries: Array<{ literal: string; placeholder: string }> = [];
+  for (const s of snapshotIds) entries.push({ literal: s, placeholder: "[snapshot]" });
+  for (const r of refs) entries.push({ literal: r, placeholder: "[ref]" });
+  return maskLiteralTokens(text, entries);
+}
+
 /**
  * Derive the grounded `SummaryInput` from the deterministic report projection.
  *   - PASS / FAIL: include recorded reasoning + only citation-VALID observations.
@@ -114,11 +179,22 @@ const REASONING_SUPPRESSED_CODES = new Set(["INVALID_CITATION", "VERIFIER_SCHEMA
  */
 export function buildSummaryInput(report: RunReport): SummaryInput {
   const criteria: SummaryCriterion[] = report.verification.criteria.map((c) => {
+    // Identifier scrub seed: snapshot IDs from the criterion's COMPLETE recorded evidence set
+    // AND every observation's snapshotId (valid or not); refs from every observation's ref
+    // (valid or not). So an id that exists only on a rejected observation is still masked from
+    // any free text. Deduped via Set; masking replaces longest-first at token boundaries.
+    const snapshotSeed = new Set<string>([
+      ...(c.evidence?.snapshotIds ?? []),
+      ...c.observations.map((o) => o.snapshotId),
+    ]);
+    const refSeed = new Set<string>(c.observations.map((o) => o.ref));
+    const scrub = (t: string): string => maskIdentifierLiterals(t, snapshotSeed, refSeed);
+
     const validObservations: SummaryObservation[] = c.observations
       .filter((_, i) => c.citationValidations[i]?.valid === true)
       .map((o) => ({
         label: o.label,
-        observedText: o.observedText,
+        observedText: scrub(o.observedText),
         ...(o.normalizedValue !== undefined ? { normalizedValue: o.normalizedValue } : {}),
       }));
 
@@ -129,16 +205,19 @@ export function buildSummaryInput(report: RunReport): SummaryInput {
     };
 
     if (c.verdict === "INCONCLUSIVE") {
-      if (c.inconclusiveDetail !== undefined) out.inconclusiveDetail = c.inconclusiveDetail;
+      if (c.inconclusiveDetail !== undefined) {
+        // Spread preserves the locked kind/origin/code; only the free-text explanation is scrubbed.
+        out.inconclusiveDetail = { ...c.inconclusiveDetail, explanation: scrub(c.inconclusiveDetail.explanation) };
+      }
       const code =
         c.inconclusiveDetail?.kind === "ERROR" ? c.inconclusiveDetail.code : undefined;
       if (code === undefined || !REASONING_SUPPRESSED_CODES.has(code)) {
-        if (c.reasoning) out.reasoning = c.reasoning;
+        if (c.reasoning) out.reasoning = scrub(c.reasoning);
         if (validObservations.length > 0) out.observations = validObservations;
       }
     } else {
       // PASS / FAIL
-      if (c.reasoning) out.reasoning = c.reasoning;
+      if (c.reasoning) out.reasoning = scrub(c.reasoning);
       if (validObservations.length > 0) out.observations = validObservations;
     }
     return out;
@@ -186,6 +265,8 @@ const SUMMARY_SYSTEM_PROMPT = [
   "  or inconclusive detail provided.",
   "- Do not make any claim about platform-wide accuracy, reliability, or correctness beyond this",
   "  single report.",
+  "- Do not mention snapshot IDs or element refs (e.g. placeholders like [snapshot] / [ref]);",
+  "  describe the evidence in plain language.",
   `- Output plain text only (no Markdown, headings, lists, or code), at most ${SUMMARY_WORD_LIMIT}`,
   "  words in one or two short paragraphs.",
 ].join("\n");

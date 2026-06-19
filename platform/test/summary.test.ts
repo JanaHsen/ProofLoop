@@ -180,6 +180,57 @@ for (const code of ["INVALID_CITATION", "VERIFIER_SCHEMA_ERROR"] as const) {
   });
 }
 
+// ---------------- contract-excluded identifier scrub ----------------
+
+test("buildSummaryInput: scrubs snapshot IDs and refs (including invalid-only ids) from all free text", () => {
+  const validObs: Observation = { label: "Tax", observedText: "tax read at snapshot-022 ref e35", snapshotId: "snapshot-022", ref: "e35" };
+  const invalidObs: Observation = { label: "bad", observedText: "rejected", snapshotId: "snapshot-099", ref: "e9" };
+  const report = synthReport(
+    [
+      reportCriterion({
+        criterionId: "add-to-cart:C2",
+        verdict: "FAIL",
+        reasoning: "Per snapshot-022 ref e35 the tax is wrong; the rejected citation pointed at snapshot-099 ref e9 instead.",
+        observations: [validObs, invalidObs],
+        citationValidations: [VALID_CV, INVALID_CV],
+        evidence: { snapshotIds: ["snapshot-022"] }, // snapshot-099 / e9 exist ONLY on the invalid observation
+      }),
+    ],
+    "FAIL",
+  );
+  const c = buildSummaryInput(report).criteria[0];
+  const blob = JSON.stringify(c);
+  for (const id of ["snapshot-022", "snapshot-099", "e35", "e9"]) {
+    assert.ok(!blob.includes(id), `${id} must be scrubbed from the SummaryInput`);
+  }
+  assert.ok(c.reasoning!.includes("[snapshot]") && c.reasoning!.includes("[ref]"), "placeholders inserted");
+  assert.ok(c.reasoning!.includes("the tax is wrong"), "surrounding meaning survives");
+  assert.ok(
+    c.observations![0].observedText.includes("[snapshot]") && c.observations![0].observedText.includes("[ref]"),
+    "observedText is scrubbed too",
+  );
+});
+
+test("buildSummaryInput: longest-first, token-boundary masking (e3 vs e35; unrelated tokens survive)", () => {
+  const o1: Observation = { label: "a", observedText: "x", snapshotId: "snapshot-001", ref: "e35" };
+  const o2: Observation = { label: "b", observedText: "y", snapshotId: "snapshot-001", ref: "e3" };
+  const report = synthReport([
+    reportCriterion({
+      criterionId: "add-to-cart:C1",
+      verdict: "PASS",
+      reasoning: "see ref e35 and ref e3; tokens code3 and phase35 are unrelated.",
+      observations: [o1, o2],
+      citationValidations: [VALID_CV, VALID_CV],
+      evidence: { snapshotIds: ["snapshot-001"] },
+    }),
+  ]);
+  const r = buildSummaryInput(report).criteria[0].reasoning!;
+  assert.ok(!r.includes("[ref]5"), "e3 did not clobber the e35 substring");
+  assert.ok(!r.includes("ref e35") && !r.includes("ref e3"), "both standalone refs are masked");
+  assert.ok(r.includes("code3") && r.includes("phase35"), "unrelated tokens survive");
+  assert.equal((r.match(/\[ref\]/g) || []).length, 2, "exactly the two standalone refs were masked");
+});
+
 // ---------------- delimiter / prompt-injection guard ----------------
 
 test("assembleSummaryPrompt: artifact text cannot close or forge the <report_data> delimiter", () => {
