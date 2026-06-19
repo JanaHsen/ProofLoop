@@ -445,22 +445,56 @@ evaluation record, and compares `flowVerdict` to `fixtures/bug-ledger.yaml`:
 | BUGGY | `BUG-002` | `FAIL` | a broken total is caught |
 | BUGGY+MUTATED | `BUG-002,MUT-001` | `FAIL` | the regression trap — healed button, still-broken total |
 
-- [ ] Produce all four runs + evaluation records; keep them for review.
-- [ ] Confirm the **catcher is the proportional rule, not the reconcile invariant.** Under BUG-002
+- [x] Produce all four runs + evaluation records; keep them for review.
+- [x] Confirm the **catcher is the proportional rule, not the reconcile invariant.** Under BUG-002
   the cart shows `Tax $0.00` and `Total == Subtotal`, so `Subtotal + Tax == Total` still holds —
   that criterion PASSES the buggy cart. The FAIL comes from "Tax equals 10% of the Subtotal"
   ($0.00 ≠ $5.90). Do not let the verifier or any reading talk itself out of that.
-- [ ] Confirm the BUGGY+MUTATED run shows the executor navigating the renamed control (heal) while
+- [x] Confirm the BUGGY+MUTATED run shows the executor navigating the renamed control (heal) while
   the verifier still returns FAIL on the tax criterion (no healing past behaviour).
 
 🚦 **HUMAN GATE:** the human reviews all four evaluation records, confirms each `flowVerdict`
 matches the ledger's `expected_verdict`, and signs off Phase 3 complete. Do not self-certify.
+
+> **Gate record (Task 6 — human-approved 2026-06-19).** The human reviewed all four evaluation
+> records and confirmed every `flowVerdict` matches `fixtures/bug-ledger.yaml`. **Task 6 complete;
+> the Phase 3 core exit criterion is met.** All four runs share one `planHash`
+> (`sha256:ad29fd82…`), so identical criteria were graded across every state. Verifier =
+> `claude-opus-4-8`; exactly one verification per run.
+>
+> | State | `PROOFLOOP_BUGS` | runId | `flowVerdict` | C1 line-totals | C2 proportional-tax | C3 reconcile |
+> |---|---|---|---|---|---|---|
+> | CLEAN | *(empty)* | `add-to-cart-2026-06-18T21-34-32-463Z-d1908fac` | **PASS** | PASS | PASS (Tax $5.90) | PASS (Total $64.87) |
+> | MUTATED | `MUT-001` | `add-to-cart-2026-06-19T11-17-07-018Z-51cd9564` | **PASS** | PASS | PASS (Tax $5.90) | PASS (Total $64.87) |
+> | BUGGY | `BUG-002` | `add-to-cart-2026-06-19T11-21-55-992Z-57f2c78f` | **FAIL** | PASS | **FAIL (Tax $0.00 ≠ $5.90)** | PASS (Total $58.97) |
+> | BUGGY+MUTATED | `BUG-002,MUT-001` | `add-to-cart-2026-06-19T11-23-44-691Z-8686ccd2` | **FAIL** | PASS | **FAIL (Tax $0.00 ≠ $5.90)** | PASS (Total $58.97) |
+>
+> **Self-heal (MUTATED + BUGGY+MUTATED).** MUT-001 renames "Add to Cart" → "Add to Bag"; the string
+> "Add to Cart" appears in no stored snapshot. The executor located the add control by intent and
+> clicked the renamed `Add to Bag` buttons (Desk Lamp + Coffee Mug) through fresh harness-validated
+> refs (`refValidation.valid:true`, `validatedBy:"harness"`); no CSS selectors and no coordinates.
+> The rename never changed a verdict.
+> **Regression trap (BUGGY+MUTATED).** The executor healed the renamed control yet the verifier
+> still returned **FAIL** on the proportional-tax criterion — no healing past behaviour.
+> **Catcher confirmed.** C3 (`Subtotal + Tax == Total`) PASSES the buggy cart ($58.97 + $0.00 =
+> $58.97); the FAIL is C2 ("Tax equals 10% of the Subtotal", $0.00 ≠ $5.90) — exactly the intended
+> catcher. **Citation integrity:** every citation across the four records validated clean
+> (`digestMatches`/`refPresent`/`observedTextPresent`/`valid` all true); no `INVALID_CITATION`, no
+> `VERIFIER_SCHEMA_ERROR`, no downgrades, and no retries/blocks/guard trips on the accepted runs.
 
 ✅ **COMMIT:** `test(platform): four-state add-to-cart verification matrix`
 
 ### Task 7 — BUG-007: FAIL, not INCONCLUSIVE (secondary, removable)
 *Serves:* the only Phase-3 exercise of the application-caused-inability ⇒ FAIL disambiguation.
 *Removable:* if pulled, delete only this task; Task 2 and the resolver's failure path stay.
+
+> **DEFERRED by human scope decision (2026-06-19) — NOT executed, NOT passed.** The live BUG-007
+> mobile demonstration is deferred until **after the presentation deadline**; BUG-007 remains
+> **planned post-presentation**. This is a scope deferral of the *demonstration only* — the
+> checkboxes below stay unticked and Task 7 is neither executed nor passed. Per D25 the underlying
+> machinery is **core and stays in**: run-log 1.1 `failureDetail`, the resolver's non-completing-step
+> path, event-citation support, and the FAIL-vs-INCONCLUSIVE contract tests are **not** removed.
+> The Phase 3 *core* exit criterion (the Task 6 four-state matrix) is complete independent of this.
 
 - [ ] The human boots the SUT with `PROOFLOOP_BUGS=BUG-007`, runs the Phase 2 executor on
   `checkout-mobile.flow.md` (viewport `mobile`, ≤480px), and runs `npm run verify`.
@@ -500,27 +534,29 @@ matches the ledger's `expected_verdict`, and signs off Phase 3 complete. Do not 
 
 ## Exit Checklist (the gate to Phase 4)
 
-- [ ] Evaluation-record schema, `InconclusiveDetail` union + code/origin table, and aggregation
+- [x] Evaluation-record schema, `InconclusiveDetail` union + code/origin table, and aggregation
   rule implemented and human-gated; `EVALUATION_RECORD_SCHEMA_VERSION` set; `CLAUDE.md` tree
   updated (human-approved).
-- [ ] Run-log `"1.1"` adds `failureDetail`/`failureDetailTruncated`, scrubbed-then-truncated,
+- [x] Run-log `"1.1"` adds `failureDetail`/`failureDetailTruncated`, scrubbed-then-truncated,
   absent on success; `"1.0"` records still readable; the five failed-action/terminal tests pass;
   human-gated bump.
-- [ ] Deterministic resolver: stepId join, ≤-checkpoint window (no future snapshots),
+- [x] Deterministic resolver: stepId join, ≤-checkpoint window (no future snapshots),
   non-completing fallback, never-reached / missing-boundary short-circuits; tests pass against the
   committed frozen fixture; no criterion-meaning interpretation.
-- [ ] Per-criterion verifier emits verbatim-cited observations; the harness hard-validates every
+- [x] Per-criterion verifier emits verbatim-cited observations; the harness hard-validates every
   citation and downgrades on `INVALID_CITATION`; the prompt carries no execution-success signal
   (asserted by test); verifier model + params recorded; provisional model chosen at the gate.
-- [ ] Aggregation + writer produce a schema-valid `evaluation.json`; `planHash` asserted equal to
+- [x] Aggregation + writer produce a schema-valid `evaluation.json`; `planHash` asserted equal to
   the run's; `evaluationId` ordered and non-overwriting.
-- [ ] The four-state add-to-cart matrix returns ledger-matching verdicts under the human gate
+- [x] The four-state add-to-cart matrix returns ledger-matching verdicts under the human gate
   (CLEAN ⇒ PASS, MUT-001 ⇒ PASS, BUG-002 ⇒ FAIL, BUG-002+MUT-001 ⇒ FAIL); both the heal and the
   still-FAIL are visible in the BUGGY+MUTATED run.
 - [ ] (If the BUG-007 track is kept) BUG-007 ⇒ FAIL, not INCONCLUSIVE, confirmed against the
-  ledger.
-- [ ] The verifier never read `app/` source, the ledger, the debug token, or `PROOFLOOP_BUGS`.
-- [ ] `npm test` and `npm run typecheck` pass.
+  ledger. — **DEFERRED post-presentation by human scope decision (2026-06-19); not executed.**
+  Underlying machinery (run-log 1.1 `failureDetail`, resolver non-completing path, event citations,
+  FAIL-vs-INCONCLUSIVE contract tests) stays in. Not a Phase 3 *core* exit blocker.
+- [x] The verifier never read `app/` source, the ledger, the debug token, or `PROOFLOOP_BUGS`.
+- [x] `npm test` and `npm run typecheck` pass.
 
 ---
 
