@@ -8,6 +8,7 @@ import { parseFlow } from "../src/parser";
 import { ParsedSnapshot, parseSnapshot } from "../src/mcp/snapshot";
 import type { ValidatedRef } from "../src/mcp/snapshot";
 import type { ToolResult } from "../src/mcp/client";
+import { browserConfigFor } from "../src/mcp/client";
 import { BrowserActuator, runFlow } from "../src/engine/loop";
 import type { Decider, DecisionContext, DeciderResult } from "../src/engine/decider";
 import { DEFAULT_GUARDS, GuardConfig } from "../src/engine/guards";
@@ -16,6 +17,12 @@ import { FAILURE_DETAIL_MAX_LEN } from "../src/run/schema";
 import type { RunEvent } from "../src/run/schema";
 
 const NOW = () => new Date("2026-06-18T00:00:00.000Z");
+/** Valid, complete 1.2 mode metadata threaded into every runFlow (headless, desktop). */
+const MODE_META = {
+  mode: "headless" as const,
+  requestedMode: "headless" as const,
+  browser: browserConfigFor("desktop"),
+};
 const USAGE = { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 
 function plan() {
@@ -145,6 +152,7 @@ async function execute(
       runsRoot,
       model: "claude-sonnet-4-6",
       pricingConfigId: "anthropic-2026-06",
+      ...MODE_META,
       decider,
       actuator,
       guards: over.guards ? { ...DEFAULT_GUARDS, ...over.guards } : undefined,
@@ -428,6 +436,7 @@ test("recognition: an already-satisfied step completes without an unnecessary ac
       runsRoot,
       model: "claude-sonnet-4-6",
       pricingConfigId: "anthropic-2026-06",
+      ...MODE_META,
       decider,
       actuator,
       now: NOW,
@@ -530,6 +539,7 @@ test("D25: failureDetail is scrubbed BEFORE truncation (a boundary-straddling se
       runsRoot,
       model: "claude-sonnet-4-6",
       pricingConfigId: "anthropic-2026-06",
+      ...MODE_META,
       decider,
       actuator,
       now: NOW,

@@ -42,6 +42,7 @@ import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 import type { Viewport } from "../flow-plan";
+import type { BrowserConfig, BrowserMode } from "../run/schema";
 import {
   DISPATCH_ALLOWLIST,
   REQUIRED_TOOLS,
@@ -70,6 +71,40 @@ const VIEWPORT_SIZE: Record<Viewport, string> = {
   mobile: "390x844",
 };
 
+/** Numeric viewport dimensions for the manifest's typed `browser` config (D36). */
+export function viewportDimensions(viewport: Viewport): {
+  width: number;
+  height: number;
+} {
+  const [width, height] = VIEWPORT_SIZE[viewport].split("x").map(Number);
+  return { width, height };
+}
+
+/**
+ * The typed browser config recorded in the 1.2 manifest (D36). Derived from the SAME launch
+ * facts `buildServerArgs` encodes — `--browser chromium`, `--isolated`, `--snapshot-mode
+ * full` (accessibility snapshots), no `--caps vision` — and the SAME `VIEWPORT_SIZE` map as
+ * `--viewport-size`, so the logged viewport can never drift from the one the browser launches
+ * with. Single source of truth; the CLI and tests both build the config through here.
+ */
+export function browserConfigFor(viewport: Viewport): BrowserConfig {
+  return {
+    engine: "chromium",
+    isolated: true,
+    viewport: viewportDimensions(viewport),
+    accessibilitySnapshots: true,
+    visionEnabled: false,
+  };
+}
+
+/** The headless flag added at the launch seam. There is NO `--headed` flag (server default). */
+export const HEADLESS_FLAG = "--headless";
+
+/** Resolve an optional mode to the effective mode; headless is the CI-safe default (D36). */
+export function effectiveMode(mode: BrowserMode | undefined): BrowserMode {
+  return mode ?? "headless";
+}
+
 const LAUNCH_TIMEOUT_MS = 60_000;
 const NAVIGATE_TIMEOUT_MS = 60_000;
 const ACTION_TIMEOUT_MS = 30_000;
@@ -96,6 +131,14 @@ export interface McpClientOptions {
    * for bring-up. Must exist.
    */
   outputDir: string;
+  /**
+   * Browser mode (Phase 5, D32/D36). Omitted ⇒ headless (the CI-safe default). This is
+   * the ONLY option that turns mode into runtime browser behavior, and it does so at the
+   * launch seam alone (`resolveLaunchArgs`): headless adds one `--headless`; headed omits
+   * it. The production CLI always passes an explicit mode; the default exists only so
+   * non-CLI callers fail safe (headless), never into a headed-without-display launch.
+   */
+  mode?: BrowserMode;
 }
 
 /**
@@ -125,6 +168,56 @@ export function buildServerArgs(opts: McpClientOptions): string[] {
     "--output-dir",
     opts.outputDir,
   ];
+}
+
+/**
+ * The exact argv for a client config, MODE INCLUDED — the launch seam (D32). Pure and
+ * exported so the headed/headless toggle is asserted without launching a browser. The
+ * pinned @playwright/mcp is headed by default and has no `--headed` flag, so:
+ *   - headless (default) = the mode-agnostic base argv PLUS exactly one `--headless`;
+ *   - headed             = the base argv, with `--headless` omitted.
+ * This is the only function in the package where mode changes runtime browser behavior.
+ */
+export function resolveLaunchArgs(opts: McpClientOptions): string[] {
+  const base = buildServerArgs(opts);
+  return effectiveMode(opts.mode) === "headless" ? [...base, HEADLESS_FLAG] : [...base];
+}
+
+/** Raised when headed mode is requested where no display server exists (D36, no fallback). */
+export class HeadedDisplayUnavailableError extends Error {
+  constructor() {
+    super(
+      "headed mode was requested but no display server is available " +
+        "(no DISPLAY / WAYLAND_DISPLAY). Headed is for local debugging; CI and other " +
+        "displayless environments must use the default headless mode. Refusing to " +
+        "silently fall back to headless, which would make a 'headed' run secretly headless.",
+    );
+    this.name = "HeadedDisplayUnavailableError";
+  }
+}
+
+/**
+ * Whether a headful browser can open a window here. Windows and macOS desktop sessions
+ * always can; on Linux a headful Chromium needs an X or Wayland server. Pure (env +
+ * platform injectable) so the headed-without-display failure is deterministically tested.
+ */
+export function isDisplayAvailable(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform === "win32" || platform === "darwin") return true;
+  return Boolean(env.DISPLAY || env.WAYLAND_DISPLAY);
+}
+
+/** Fail loudly (no fallback) if headed is requested without an available display (D36). */
+export function assertHeadedDisplay(
+  mode: BrowserMode,
+  env?: NodeJS.ProcessEnv,
+  platform?: NodeJS.Platform,
+): void {
+  if (mode === "headed" && !isDisplayAvailable(env, platform)) {
+    throw new HeadedDisplayUnavailableError();
+  }
 }
 
 /** Strip any ground-truth/secret vars so the subprocess inherits only safe env. */
@@ -186,16 +279,13 @@ export class PlaywrightMcpClient {
   }
 
   /**
-   * The exact argv for the managed @playwright/mcp subprocess. Production returns the
-   * frozen headed config verbatim (`buildServerArgs`); this method exists ONLY as a
-   * behavior-preserving override seam so a clearly-marked investigation/test subclass
-   * can supply the headed/headless toggle (Phase 5 Task 2) WITHOUT introducing a mode
-   * parameter into the production options/CLI/manifest surface — that production mode
-   * plumbing is Phase 5 Task 3. Production callers never override this, so the launched
-   * argv is identical to `buildServerArgs(this.opts)`.
+   * The exact argv for the managed @playwright/mcp subprocess, mode resolved at this
+   * launch seam (D32): headless (the default) adds one `--headless`; headed omits it.
+   * Still an override point — the Task 2 investigation-only subclass overrides it to
+   * drive both modes — but production now resolves mode here from `this.opts.mode`.
    */
   protected buildLaunchArgs(): string[] {
-    return buildServerArgs(this.opts);
+    return resolveLaunchArgs(this.opts);
   }
 
   /**
@@ -204,6 +294,10 @@ export class PlaywrightMcpClient {
    */
   async launch(): Promise<void> {
     if (this.client) throw new McpClientError("already launched");
+    // Defense-in-depth for D36: refuse a headed launch with no display before any side
+    // effect. The CLI validates this first (operator-facing message); this guarantees no
+    // code path silently spawns headed-without-display. headless (default) is unaffected.
+    assertHeadedDisplay(effectiveMode(this.opts.mode));
     if (!fs.existsSync(this.opts.outputDir)) {
       fs.mkdirSync(this.opts.outputDir, { recursive: true });
     }

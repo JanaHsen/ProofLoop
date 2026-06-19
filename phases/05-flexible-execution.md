@@ -211,23 +211,27 @@ launcher.
 
 This task makes **no edits**. Produce a short findings note recording, from the actual code:
 
-- [ ] The current `runLogSchemaVersion` constant and **every** site that checks/accepts it
+- [x] The current `runLogSchemaVersion` constant and **every** site that checks/accepts it
   (expected: `readEvents`, `verifyAuditChain`, the Phase 3 resolver's record readers, the
   Phase 4 report generator, and any manifest loader). List each as a 1.2 reader-extension
   target.
-- [ ] The launch seam: where `@playwright/mcp` server args are assembled (e.g.
+- [x] The launch seam: where `@playwright/mcp` server args are assembled (e.g.
   `buildServerArgs`), and the **exact** headed/headless mechanism today — specifically
   whether headed is produced by injecting a `--headed` flag (server default is headless) or
   by some other means, and whether mode is already parameterized at all.
-- [ ] A grep proving no execution-loop, prompting, verification, evidence-resolution,
+- [x] A grep proving no execution-loop, prompting, verification, evidence-resolution,
   verdict, reporting, guard, or redaction code currently branches on a mode value.
-- [ ] The canonical snapshot serialization and the no-progress normalizer's volatile-field
+- [x] The canonical snapshot serialization and the no-progress normalizer's volatile-field
   list, recorded as the *starting hypothesis* for Task 4 (not an answer).
-- [ ] The flow CLI entry (the `run` script and its arg parser) — the single site where
+- [x] The flow CLI entry (the `run` script and its arg parser) — the single site where
   `--headed` will be parsed.
-- [ ] Report all findings to the human before proceeding. If headless is **not** already
+- [x] Report all findings to the human before proceeding. If headless is **not** already
   parameterized at the seam, note it: Task 2 will use an investigation-only launcher and
   Task 3 introduces the production parameter.
+
+> **Task 1 audit done & human-approved (2026-06-19).** Server is headed-by-default; mode was
+> unparameterized; `SUPPORTED_RUN_LOG_SCHEMA_VERSIONS` is the single reader-extension control;
+> no behavioral path branched on mode. An investigation-only launcher was required for Task 2.
 
 *(No commit — this is a read-only audit. Its output is the findings note that gates the
 later tasks.)*
@@ -237,22 +241,28 @@ later tasks.)*
 have not measured.
 *Next depends on it:* Task 4's allow-list is designed from these observations.
 
-- [ ] Stand up the clean SUT (`PROOFLOOP_BUGS` empty). Drive a **harness-navigated**,
+- [x] Stand up the clean SUT (`PROOFLOOP_BUGS` empty). Drive a **harness-navigated**,
   LLM-free set of controlled checkpoints in **both** modes and capture, through the
   production snapshot serialization, the scrubbed accessibility snapshots at each checkpoint.
   Mandatory checkpoints are deterministic, auth-free, server-rendered pages — at minimum
   `/login` and `/form` — where each mode reaches the *same* page state by navigation alone,
   so mode is the sole variable (this removes D18 path-divergence from the experiment).
-- [ ] If, and only if, Task 1/early results show the static auth-free pages are not
+- [x] If, and only if, Task 1/early results show the static auth-free pages are not
   representative of the stateful surface, escalate to a **deterministic replay driver** that
   re-resolves each recorded step by `(role, accessibleName)` against the current mode's fresh
   snapshot. A failed re-resolution is a parity finding, not an error to mask. Do not build
-  the replay driver speculatively.
-- [ ] Diff the raw (pre-normalization) snapshots across modes at each checkpoint and record
+  the replay driver speculatively. *(Not escalated — static checkpoints showed perfect parity.)*
+- [x] Diff the raw (pre-normalization) snapshots across modes at each checkpoint and record
   **every** observed difference: field path, headed value, headless value, and a short note
   on whether it looks mode-incidental (refs/ordering/active/cursor/transient) or behavioral.
-- [ ] Output a **findings document** enumerating the observed deltas. This document is the
+- [x] Output a **findings document** enumerating the observed deltas. This document is the
   sole authorized basis for the Task 4 allow-list.
+
+> **Task 2 done & human-approved (2026-06-19).** Findings:
+> [`platform/test/investigation/FINDINGS.md`](../platform/test/investigation/FINDINGS.md).
+> **Zero** raw cross-mode deltas at `/login` and `/form` (byte-identical scrubbed YAML,
+> matching digests, byte-identical same-mode control); `[ref]/[active]/[cursor]` present but
+> invariant. **The approved Task 4 dropped-field allow-list is therefore EMPTY.**
 
 **Investigation-only launcher constraint (per the approved tightening):**
 
@@ -272,23 +282,24 @@ launcher is clearly marked non-production and is not wired into the CLI or the r
 *Next depends on it:* Task 5 proves the isolation of exactly this plumbing; Tasks 6–7 run
 through it.
 
-- [ ] Parse `--headed` at the single CLI entry; default `headless`. No `--headless` flag, no
+- [x] Parse `--headed` at the single CLI entry; default `headless`. No `--headless` flag, no
   env duplicate.
-- [ ] Thread the resolved mode to the launch seam only. Per the Task 1 finding, this is
+- [x] Thread the resolved mode to the launch seam only. Per the Task 1 finding, this is
   either dropping a hardcoded `--headed` by default and re-adding it when requested, or
   introducing the parameter if absent. The Phase 2 writer that currently hardcodes
-  `mode: "headed"` is updated to record the **effective** mode.
-- [ ] Headed requested without an available display **fails loudly**; no silent fallback.
-- [ ] Widen `RunManifest.mode` to `"headed" | "headless"` (effective); add optional
+  `mode: "headed"` is updated to record the **effective** mode. *(Done by introducing the
+  parameter; `resolveLaunchArgs` injects `--headless` for headless and omits it for headed.)*
+- [x] Headed requested without an available display **fails loudly**; no silent fallback.
+- [x] Widen `RunManifest.mode` to `"headed" | "headless"` (effective); add optional
   `requestedMode` and the typed `browser` struct (D36). Do not log raw subprocess args.
-- [ ] Bump `runLogSchemaVersion` to `"1.2"`. Extend **every** reader identified in Task 1 to
+- [x] Bump `runLogSchemaVersion` to `"1.2"`. Extend **every** reader identified in Task 1 to
   accept `"1.0" | "1.1" | "1.2"`; keep `requestedMode`/`browser` optional so older records
   read cleanly.
-- [ ] Update `../CLAUDE.md`: run-log is now `1.2` (readers tolerate 1.0–1.2); manifest
+- [x] Update `../CLAUDE.md`: run-log is now `1.2` (readers tolerate 1.0–1.2); manifest
   carries effective `mode` + `requestedMode` + typed `browser`; record the headed/headless
   CLI contract; add the parity-artifact location to the canonical tree if Task 7 introduces
-  a tracked path.
-- [ ] Tests:
+  a tracked path. *(Parity-artifact tree path deferred to Task 7.)*
+- [x] Tests:
   - default invocation records `mode: "headless"`, `requestedMode: "headless"`;
   - `--headed` records `mode: "headed"`, `requestedMode: "headed"`, and (where detectable)
     launches with the headed flag;
@@ -300,6 +311,14 @@ through it.
 🚦 **HUMAN GATE:** the human reviews and freezes the `1.2` schema (the `mode` widening,
 `requestedMode`, the typed `browser` struct, the reader-tolerance set) and approves the
 `CLAUDE.md` edit. Do not proceed until approved.
+
+> ✅ **APPROVED 2026-06-19.** The `1.2` schema is **frozen**: headless is the default;
+> `--headed` is the only override; no `--headless` flag and no env duplicate;
+> headed-without-display fails loudly with no fallback; every 1.2 writer requires and records
+> effective `mode` + `requestedMode` + a complete typed `browser`; `requestedMode === mode`;
+> stored 1.0/1.1 manifests read without the new fields; incomplete/contradictory 1.2 manifests
+> fail loudly; mode reaches runtime browser behavior only via `resolveLaunchArgs`; viewport
+> logging and MCP launch share one configuration source. `CLAUDE.md` edit approved.
 
 ✅ **COMMIT:** `feat(platform): headed/headless mode contract + run-log 1.2`
 
@@ -430,16 +449,16 @@ presentation artifacts before approval.
 
 ## Exit Checklist (the gate to Phase 6)
 
-- [ ] Task 1 findings note recorded from real code; reader-extension list and launch seam
+- [x] Task 1 findings note recorded from real code; reader-extension list and launch seam
   confirmed in-repo.
-- [ ] Task 2 mode-delta findings document produced; investigation-only launcher confined to
+- [x] Task 2 mode-delta findings document produced; investigation-only launcher confined to
   scratch/test, not the production path.
-- [ ] `npm run run -- <flow>` defaults headless; `--headed` overrides; no `--headless` flag;
+- [x] `npm run run -- <flow>` defaults headless; `--headed` overrides; no `--headless` flag;
   no env duplicate; headed-without-display fails loudly.
-- [ ] Manifest records effective `mode`, `requestedMode`, and the typed `browser` struct; no
+- [x] Manifest records effective `mode`, `requestedMode`, and the typed `browser` struct; no
   raw subprocess args; `runLogSchemaVersion = "1.2"`.
-- [ ] Every version-aware reader accepts `1.0`/`1.1`/`1.2`; a stored `1.1` record still reads.
-- [ ] `CLAUDE.md` updated (human-gated) for the `1.2` schema, the mode fields, and the CLI
+- [x] Every version-aware reader accepts `1.0`/`1.1`/`1.2`; a stored `1.1` record still reads.
+- [x] `CLAUDE.md` updated (human-gated) for the `1.2` schema, the mode fields, and the CLI
   contract.
 - [ ] Normalizer is closed-by-default, field-aware, derived only from Task 2 deltas, frozen at
   a gate, and passes the full negative-guard suite; it emits structured diffs.

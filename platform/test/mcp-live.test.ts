@@ -8,12 +8,13 @@ import { PlaywrightMcpClient } from "../src/mcp/client";
 import { REQUIRED_TOOLS, isCoordinateTool } from "../src/mcp/tools";
 import { validateRef, type ValidatedRef } from "../src/mcp/snapshot";
 
-// LIVE browser bring-up for the MCP client. Launches a real headed Chromium, so it
-// is OFF by default (keeps `npm test` fast + deterministic). Run it with:
+// LIVE browser bring-up for the MCP client. Launches a real Chromium, so it is OFF by
+// default (keeps `npm test` fast + deterministic). Run it with:
 //   PROOFLOOP_LIVE_MCP=1 npm test
-// It is SUT-independent (drives a data: URL), so it verifies the client mechanics
-// without the app up. The substantive authenticated continuity / cross-flow leak
-// proof rides on the Task 6 login run against the real SUT.
+// Runs headless (the Phase 5 default) so it needs no display; it is SUT-independent
+// (drives a data: URL), so it verifies the client mechanics without the app up. The
+// substantive authenticated continuity / cross-flow leak proof rides on the Task 6
+// login run against the real SUT.
 const SKIP = process.env.PROOFLOOP_LIVE_MCP
   ? false
   : "set PROOFLOOP_LIVE_MCP=1 to run the live headed MCP browser test";
@@ -29,7 +30,7 @@ const DATA_URL = "data:text/html," + encodeURIComponent(FORM);
 
 test("live MCP client: launch → discover → snapshot → act → teardown", { skip: SKIP }, async () => {
   const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "proofloop-live-"));
-  const client = new PlaywrightMcpClient({ viewport: "desktop", outputDir });
+  const client = new PlaywrightMcpClient({ viewport: "desktop", outputDir, mode: "headless" });
   try {
     await client.launch();
 

@@ -13,6 +13,8 @@ import type { ParsedSnapshot } from "../mcp/snapshot";
 import { digestSnapshot } from "../mcp/snapshot";
 import { redactValuesInText } from "./redaction";
 import {
+  BrowserConfig,
+  BrowserMode,
   RUN_LOG_SCHEMA_VERSION,
   RunEvent,
   RunEventInput,
@@ -21,8 +23,16 @@ import {
   SnapshotKind,
   StoredSnapshot,
   ExecutionStatus,
+  assertValidModeMetadata,
 } from "./schema";
 
+/**
+ * The REQUIRED 1.2 write input. The writer emits only the current schema (1.2), so the mode
+ * metadata is mandatory and complete here — there is NO logger-side default that could
+ * silently invent a mode. The CLI/runtime resolver decides the operator's request (default
+ * headless) and threads the resolved triplet in; the logger validates and records it (D32:
+ * record-only, never branch).
+ */
 export interface RunLoggerOptions {
   /** The runs root, e.g. platform/runs. */
   runsRoot: string;
@@ -31,6 +41,12 @@ export interface RunLoggerOptions {
   planHash: string;
   model: string;
   pricingConfigId: string;
+  /** EFFECTIVE browser mode — required; what actually ran (D35). */
+  mode: BrowserMode;
+  /** REQUESTED browser mode — required; must equal `mode` (D36, validated). */
+  requestedMode: BrowserMode;
+  /** Typed browser config — required and complete (D36). */
+  browser: BrowserConfig;
   /** Injectable clock (defaults to wall clock) so tests are deterministic. */
   now?: () => Date;
 }
@@ -60,6 +76,9 @@ export class RunLogger {
   private readonly startedAt: string;
 
   constructor(opts: RunLoggerOptions) {
+    // Fail loudly BEFORE any filesystem side effect if the mode metadata is incomplete or
+    // contradictory (requestedMode !== mode). No silent fallback (D36).
+    assertValidModeMetadata(opts);
     this.opts = opts;
     this.now = opts.now ?? (() => new Date());
     this.runDir = path.join(opts.runsRoot, opts.runId);
@@ -191,7 +210,10 @@ export class RunLogger {
       flowId: this.opts.flowId,
       planHash: this.opts.planHash,
       model: this.opts.model,
-      mode: "headed",
+      // Required 1.2 mode metadata, recorded verbatim (validated in the constructor).
+      mode: this.opts.mode,
+      requestedMode: this.opts.requestedMode,
+      browser: this.opts.browser,
       startedAt: this.startedAt,
       ...(finishedAt ? { finishedAt } : {}),
       executionStatus,

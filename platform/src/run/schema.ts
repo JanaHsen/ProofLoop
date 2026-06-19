@@ -13,22 +13,25 @@ import type { RawUsage } from "./pricing";
 import type { RedactedValue } from "./redaction";
 
 /**
- * The CURRENT run-log schema version the writer emits. Bumped to "1.1" for the D25
- * additive change: `ActionEvent` gains optional `failureDetail` / `failureDetailTruncated`
- * (failed-action evidence). The change is purely additive — the new fields are optional
- * and absent on every "1.0" shape, so "1.0" records still parse.
+ * The CURRENT run-log schema version the writer emits. Bumped to "1.2" for the Phase 5
+ * (D35) additive change: `RunManifest.mode` widens from the literal `"headed"` to the
+ * `BrowserMode` union and now carries the EFFECTIVE mode, plus the new optional
+ * `requestedMode` and typed `browser` config. Like the "1.1" bump (D25 `failureDetail`),
+ * the change is purely additive — the widened `mode` still accepts the old `"headed"`
+ * value and the two new fields are optional and absent on every "1.0"/"1.1" shape, so
+ * older records still parse.
  *
  * Readers must check MEMBERSHIP in `SUPPORTED_RUN_LOG_SCHEMA_VERSIONS` — not pin the
  * single current version (that would refuse still-readable older logs) and not accept
  * arbitrary versions (that would silently mis-read a future shape).
  */
-export const RUN_LOG_SCHEMA_VERSION = "1.1";
+export const RUN_LOG_SCHEMA_VERSION = "1.2";
 
 /**
  * Every run-log schema version this codebase can READ. The writer emits the latest
  * (`RUN_LOG_SCHEMA_VERSION`); readers accept any member and reject the rest.
  */
-export const SUPPORTED_RUN_LOG_SCHEMA_VERSIONS = ["1.0", "1.1"] as const;
+export const SUPPORTED_RUN_LOG_SCHEMA_VERSIONS = ["1.0", "1.1", "1.2"] as const;
 export type SupportedRunLogSchemaVersion =
   (typeof SUPPORTED_RUN_LOG_SCHEMA_VERSIONS)[number];
 
@@ -94,6 +97,91 @@ export interface RunTotals {
   retryCount: number;
 }
 
+/**
+ * Browser execution mode (Phase 5, D32/D36). `headless` is the CI-safe default; `headed`
+ * is the local-debug override. The pinned @playwright/mcp server is headed by default and
+ * has no `--headed` flag, so headless is produced by adding exactly one `--headless` at the
+ * launch seam — the ONLY place mode is allowed to change runtime browser behavior (D32).
+ */
+export type BrowserMode = "headed" | "headless";
+
+/**
+ * Typed browser configuration recorded in the manifest (D36). Deliberately a STRUCTURE of
+ * stable, meaningful facts — never a dump of raw subprocess arguments (some carry
+ * machine-specific paths and would break determinism / leak the local environment).
+ */
+export interface BrowserConfig {
+  engine: "chromium";
+  isolated: true;
+  viewport: { width: number; height: number };
+  accessibilitySnapshots: true;
+  visionEnabled: false;
+}
+
+/** Thrown when a 1.2 manifest is missing, malforming, or contradicting its mode metadata. */
+export class InvalidRunManifestError extends Error {
+  constructor(message: string) {
+    super(`invalid run manifest: ${message}`);
+    this.name = "InvalidRunManifestError";
+  }
+}
+
+export function isBrowserMode(v: unknown): v is BrowserMode {
+  return v === "headed" || v === "headless";
+}
+
+/** True iff `v` is a COMPLETE typed browser config (D36) — every field present and exact. */
+export function isBrowserConfig(v: unknown): v is BrowserConfig {
+  if (typeof v !== "object" || v === null) return false;
+  const b = v as Record<string, unknown>;
+  const vp = b.viewport as Record<string, unknown> | undefined;
+  return (
+    b.engine === "chromium" &&
+    b.isolated === true &&
+    b.accessibilitySnapshots === true &&
+    b.visionEnabled === false &&
+    typeof vp === "object" &&
+    vp !== null &&
+    typeof vp.width === "number" &&
+    typeof vp.height === "number"
+  );
+}
+
+/**
+ * Validate run-log 1.2 mode metadata (D35/D36) at BOTH boundaries — the writer refuses to
+ * record an incomplete/contradictory manifest, and a stored 1.2 manifest must carry the
+ * full, consistent triplet. Enforces:
+ *   - `mode` and `requestedMode` are valid BrowserModes;
+ *   - `browser` is a COMPLETE typed config;
+ *   - `requestedMode === mode` — D36 forbids a silent fallback, so a divergent pair would
+ *     be an internally contradictory artifact and is rejected loudly.
+ */
+export function assertValidModeMetadata(m: {
+  mode?: unknown;
+  requestedMode?: unknown;
+  browser?: unknown;
+}): void {
+  if (!isBrowserMode(m.mode)) {
+    throw new InvalidRunManifestError(
+      `mode must be "headed" | "headless", got ${JSON.stringify(m.mode)}`,
+    );
+  }
+  if (!isBrowserMode(m.requestedMode)) {
+    throw new InvalidRunManifestError(
+      `requestedMode must be "headed" | "headless", got ${JSON.stringify(m.requestedMode)}`,
+    );
+  }
+  if (!isBrowserConfig(m.browser)) {
+    throw new InvalidRunManifestError("browser config is missing or incomplete");
+  }
+  if (m.requestedMode !== m.mode) {
+    throw new InvalidRunManifestError(
+      `requestedMode "${m.requestedMode}" must equal effective mode "${m.mode}" — ` +
+        "D36 forbids a silent fallback, so the pair can never diverge",
+    );
+  }
+}
+
 export interface RunManifest {
   runLogSchemaVersion: string;
   runId: string;
@@ -101,7 +189,20 @@ export interface RunManifest {
   planHash: string;
   /** Decider model id (env-configurable; a Phase 7 cost variable). */
   model: string;
-  mode: "headed";
+  /** EFFECTIVE browser mode — what actually ran (D35). Widened from the 1.1 literal "headed". */
+  mode: BrowserMode;
+  /**
+   * (run-log 1.2, D35) REQUESTED browser mode — what the operator asked for. Optional on the
+   * READ type so older "1.0"/"1.1" records parse, but a "1.2" manifest MUST carry it and it
+   * MUST equal `mode` (D36 has no silent fallback) — enforced by `assertValidModeMetadata`
+   * at the write and read boundaries.
+   */
+  requestedMode?: BrowserMode;
+  /**
+   * (run-log 1.2, D36) Typed browser config. Optional on the READ type for older records;
+   * REQUIRED and complete on every "1.2" manifest (enforced by `assertValidModeMetadata`).
+   */
+  browser?: BrowserConfig;
   startedAt: string;
   finishedAt?: string;
   executionStatus: ExecutionStatus;

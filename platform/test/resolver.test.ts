@@ -6,6 +6,7 @@ import * as path from "node:path";
 
 import { parseFlow } from "../src/parser";
 import { extractYamlBlock, parseSnapshot } from "../src/mcp/snapshot";
+import { browserConfigFor } from "../src/mcp/client";
 import { RunLogger } from "../src/run/logger";
 import {
   EvidenceIntegrityError,
@@ -13,6 +14,13 @@ import {
   resolveEvidence,
 } from "../src/verify/resolver";
 import type { ActionEvent, ErrorEvent } from "../src/run/schema";
+
+/** Valid, complete 1.2 mode metadata for the logger (headless, desktop). */
+const MODE_META = {
+  mode: "headless" as const,
+  requestedMode: "headless" as const,
+  browser: browserConfigFor("desktop"),
+};
 
 const FROZEN = path.join(__dirname, "fixtures", "runs", "add-to-cart-frozen");
 const BLOCKED = path.join(__dirname, "fixtures", "runs", "blocked-non-completing");
@@ -125,7 +133,7 @@ test("completed step with a missing boundary snapshot ⇒ MISSING_BOUNDARY_SNAPS
   const dir = tmpDir();
   try {
     // a run where S1 reaches step_end but its step_boundary snapshot was never written
-    const logger = new RunLogger({ runsRoot: dir, runId: "mb", flowId: "mb-demo", planHash: "sha256:p", model: "claude-sonnet-4-6", pricingConfigId: "anthropic-2026-06", now: NOW });
+    const logger = new RunLogger({ runsRoot: dir, runId: "mb", flowId: "mb-demo", planHash: "sha256:p", model: "claude-sonnet-4-6", pricingConfigId: "anthropic-2026-06", ...MODE_META, now: NOW });
     logger.append({ type: "flow_start", flowId: "mb-demo", planHash: "sha256:p", model: "claude-sonnet-4-6", entryUrl: "http://x/" });
     logger.append({ type: "step_start", stepId: "mb-demo:S1", ordinal: 1, stepTextHash: "sha256:s1" });
     logger.append({ type: "step_end", stepId: "mb-demo:S1" }); // completed, but NO boundary snapshot
@@ -148,7 +156,7 @@ test("terminal criterion with no terminal snapshot ⇒ MISSING_TERMINAL_SNAPSHOT
   const dir = tmpDir();
   try {
     // outer-catch shape: a step completes but the terminal snapshot was never captured
-    const logger = new RunLogger({ runsRoot: dir, runId: "mt", flowId: "mt-demo", planHash: "sha256:p", model: "claude-sonnet-4-6", pricingConfigId: "anthropic-2026-06", now: NOW });
+    const logger = new RunLogger({ runsRoot: dir, runId: "mt", flowId: "mt-demo", planHash: "sha256:p", model: "claude-sonnet-4-6", pricingConfigId: "anthropic-2026-06", ...MODE_META, now: NOW });
     logger.append({ type: "flow_start", flowId: "mt-demo", planHash: "sha256:p", model: "claude-sonnet-4-6", entryUrl: "http://x/" });
     logger.append({ type: "step_start", stepId: "mt-demo:S1", ordinal: 1, stepTextHash: "sha256:s1" });
     logger.recordSnapshot(SNAP, "step_boundary", [], "mt-demo:S1");

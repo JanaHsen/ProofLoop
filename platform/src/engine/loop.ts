@@ -35,7 +35,7 @@ import {
 } from "./guards";
 import type { AttemptSummary, Decider } from "./decider";
 import { RunLogger } from "../run/logger";
-import { computePlanHash, ExecutionStatus, FAILURE_DETAIL_MAX_LEN, LoggedDecision, LoggedValue, RunManifest, hashStepText } from "../run/schema";
+import { BrowserConfig, BrowserMode, computePlanHash, ExecutionStatus, FAILURE_DETAIL_MAX_LEN, LoggedDecision, LoggedValue, RunManifest, hashStepText } from "../run/schema";
 import { computeCostUsd, loadPricing, ratesFor, usageTotals } from "../run/pricing";
 import { SensitivitySignal, extractSecretLiterals, isSensitive, redactValuesInText } from "../run/redaction";
 
@@ -66,6 +66,14 @@ export interface RunFlowOptions {
   guards?: GuardConfig;
   signal?: AbortSignal;
   now?: () => Date;
+  /**
+   * (run-log 1.2) REQUIRED mode metadata to RECORD in the manifest — forwarded to the
+   * logger and never read by the loop (D32: no execution-loop logic may branch on mode).
+   * The CLI resolves these (default headless) and threads them in; the logger validates.
+   */
+  mode: BrowserMode;
+  requestedMode: BrowserMode;
+  browser: BrowserConfig;
 }
 
 type FinalStatus = Exclude<ExecutionStatus, "running" | "crashed">;
@@ -86,6 +94,10 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
     planHash,
     model: opts.model,
     pricingConfigId: opts.pricingConfigId,
+    // Mode metadata is RECORDED only — forwarded verbatim, never branched on (D32).
+    mode: opts.mode,
+    requestedMode: opts.requestedMode,
+    browser: opts.browser,
     ...(opts.now ? { now: opts.now } : {}),
   });
   const guard = new GuardTracker(

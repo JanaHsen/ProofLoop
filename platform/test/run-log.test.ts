@@ -5,8 +5,9 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { digestSnapshot, extractYamlBlock, parseSnapshot, validateRef } from "../src/mcp/snapshot";
+import { browserConfigFor } from "../src/mcp/client";
 import { parseFlow } from "../src/parser";
-import { RunLogger } from "../src/run/logger";
+import { RunLogger, RunLoggerOptions } from "../src/run/logger";
 import {
   inferCrashed,
   readEvents,
@@ -15,10 +16,18 @@ import {
 } from "../src/run/audit";
 import {
   ActionEvent,
+  InvalidRunManifestError,
   RUN_LOG_SCHEMA_VERSION,
   UnsupportedRunLogSchemaError,
   computePlanHash,
 } from "../src/run/schema";
+
+/** A valid, complete 1.2 mode-metadata triplet for the writer (headless, desktop). */
+const MODE_META = {
+  mode: "headless" as const,
+  requestedMode: "headless" as const,
+  browser: browserConfigFor("desktop"),
+};
 
 const FIXTURE = fs.readFileSync(
   path.join(__dirname, "fixtures", "snapshot-result.txt"),
@@ -39,6 +48,7 @@ function newLogger(runsRoot: string, runId: string): RunLogger {
     planHash: "sha256:plan",
     model: "claude-opus-4-8",
     pricingConfigId: "anthropic-2026-06",
+    ...MODE_META,
     now: FIXED_NOW,
   });
 }
@@ -106,7 +116,9 @@ test("manifest finalizes atomically with terminal status + accrued totals", () =
     const runDir = writeValidRun(root, "run-2");
     const m = readManifest(runDir);
     assert.equal(m.executionStatus, "completed");
-    assert.equal(m.mode, "headed");
+    // run-log 1.2: an un-threaded mode defaults to the CI-safe headless (was hardcoded
+    // "headed" in 1.1); the explicit-mode contract is covered by the dedicated 1.2 test.
+    assert.equal(m.mode, "headless");
     assert.ok(m.finishedAt);
     assert.equal(m.runLogSchemaVersion, RUN_LOG_SCHEMA_VERSION);
     assert.deepEqual(m.totals, {
@@ -270,7 +282,7 @@ test("run-log 1.1 reader reads a stored 1.0 run cleanly (no failureDetail on its
   }
 });
 
-test("readers accept supported run-log versions (1.0, 1.1) and reject an unknown future version", () => {
+test("readers accept supported run-log versions (1.0, 1.1, 1.2) and reject an unknown future version", () => {
   const root = tmpRoot();
   try {
     const p = path.join(root, "events.jsonl");
@@ -287,18 +299,27 @@ test("readers accept supported run-log versions (1.0, 1.1) and reject an unknown
         entryUrl: "http://x/login",
       }) + "\n";
 
-    // both supported versions parse cleanly
-    fs.writeFileSync(p, ev("1.0"));
-    assert.equal(readEvents(p).events.length, 1);
-    fs.writeFileSync(p, ev("1.1"));
-    assert.equal(readEvents(p).events.length, 1);
+    // every supported version parses cleanly (1.2 added in Phase 5 / D35)
+    for (const v of ["1.0", "1.1", "1.2"]) {
+      fs.writeFileSync(p, ev(v));
+      assert.equal(readEvents(p).events.length, 1, `events v${v} must read`);
+    }
 
     // an unknown future version is rejected with the stable unsupported-schema error
     fs.writeFileSync(p, ev("2.0"));
     assert.throws(() => readEvents(p), UnsupportedRunLogSchemaError);
-    assert.throws(() => readEvents(p), /unsupported runLogSchemaVersion "2\.0" \(supported: 1\.0, 1\.1\)/);
+    assert.throws(() => readEvents(p), /unsupported runLogSchemaVersion "2\.0" \(supported: 1\.0, 1\.1, 1\.2\)/);
 
-    // the manifest reader gates the same way
+    // the manifest reader gates the same way: a stored 1.1 manifest still reads under the
+    // 1.2 readers; a future 2.0 manifest is rejected.
+    const okDir = path.join(root, "run-1.1");
+    fs.mkdirSync(okDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(okDir, "run.json"),
+      JSON.stringify({ runLogSchemaVersion: "1.1", runId: "run-1.1", mode: "headed", executionStatus: "completed" }),
+    );
+    assert.equal(readManifest(okDir).runLogSchemaVersion, "1.1");
+
     const runDir = path.join(root, "run-future");
     fs.mkdirSync(runDir, { recursive: true });
     fs.writeFileSync(
@@ -306,6 +327,135 @@ test("readers accept supported run-log versions (1.0, 1.1) and reject an unknown
       JSON.stringify({ runLogSchemaVersion: "2.0", runId: "run-future", executionStatus: "completed" }),
     );
     assert.throws(() => readManifest(runDir), UnsupportedRunLogSchemaError);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("run-log 1.2 manifest records effective mode + requestedMode + typed browser; no raw subprocess args", () => {
+  const root = tmpRoot();
+  try {
+    const logger = new RunLogger({
+      runsRoot: root,
+      runId: "run-1.2",
+      flowId: "login",
+      planHash: "sha256:plan",
+      model: "claude-opus-4-8",
+      pricingConfigId: "anthropic-2026-06",
+      mode: "headed",
+      requestedMode: "headed",
+      browser: {
+        engine: "chromium",
+        isolated: true,
+        viewport: { width: 1280, height: 720 },
+        accessibilitySnapshots: true,
+        visionEnabled: false,
+      },
+      now: FIXED_NOW,
+    });
+    logger.finalize("completed");
+
+    const m = readManifest(logger.runDir);
+    assert.equal(m.runLogSchemaVersion, "1.2");
+    assert.equal(m.mode, "headed");
+    assert.equal(m.requestedMode, "headed");
+    assert.deepEqual(m.browser, {
+      engine: "chromium",
+      isolated: true,
+      viewport: { width: 1280, height: 720 },
+      accessibilitySnapshots: true,
+      visionEnabled: false,
+    });
+
+    // No raw subprocess argument string leaks into the manifest (D36).
+    const raw = fs.readFileSync(path.join(logger.runDir, "run.json"), "utf8");
+    for (const arg of ["--headless", "--isolated", "--viewport-size", "--snapshot-mode", "cli.js", "--output-dir"]) {
+      assert.ok(!raw.includes(arg), `manifest must not contain raw arg ${arg}`);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("1.2 writer requires complete, consistent mode metadata — no silent default", () => {
+  const root = tmpRoot();
+  try {
+    const base = {
+      runsRoot: root,
+      runId: "bad",
+      flowId: "login",
+      planHash: "sha256:plan",
+      model: "m",
+      pricingConfigId: "anthropic-2026-06",
+      ...MODE_META,
+      now: FIXED_NOW,
+    };
+    const make = (over: Record<string, unknown>): RunLogger =>
+      new RunLogger({ ...base, ...over } as unknown as RunLoggerOptions);
+
+    // a missing mode must NOT silently become headless — it must throw
+    assert.throws(() => make({ mode: undefined }), InvalidRunManifestError);
+    assert.throws(() => make({ requestedMode: undefined }), InvalidRunManifestError);
+    // requestedMode !== mode is an internal contradiction (D36: no silent fallback)
+    assert.throws(
+      () => make({ mode: "headed", requestedMode: "headless" }),
+      /must equal effective mode/,
+    );
+    // an incomplete browser config is rejected
+    assert.throws(
+      () => make({ browser: { engine: "chromium" } }),
+      /browser config is missing or incomplete/,
+    );
+    // the valid triplet constructs fine (and is the only accepted shape)
+    assert.doesNotThrow(() => make({}));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("readManifest enforces the 1.2 mode contract; 1.0/1.1 may omit the new fields", () => {
+  const root = tmpRoot();
+  try {
+    const full = {
+      runLogSchemaVersion: "1.2",
+      runId: "m",
+      flowId: "login",
+      planHash: "sha256:plan",
+      model: "m",
+      mode: "headless",
+      requestedMode: "headless",
+      browser: browserConfigFor("desktop"),
+      startedAt: "2026-06-18T00:00:00.000Z",
+      executionStatus: "completed",
+      pricingConfigId: "anthropic-2026-06",
+      totals: { promptTokens: 0, completionTokens: 0, costUsd: 0, latencyMs: 0, snapshotCount: 0, actionCount: 0, errorCount: 0, retryCount: 0 },
+    };
+    let n = 0;
+    const write = (over: Record<string, unknown>): string => {
+      const dir = path.join(root, `m${n++}`);
+      fs.mkdirSync(dir, { recursive: true });
+      // JSON.stringify drops `undefined` keys → that field is absent from the manifest.
+      fs.writeFileSync(path.join(dir, "run.json"), JSON.stringify({ ...full, ...over }));
+      return dir;
+    };
+
+    // a complete 1.2 manifest reads
+    assert.equal(readManifest(write({})).runLogSchemaVersion, "1.2");
+    // a 1.2 manifest missing requestedMode is rejected
+    assert.throws(() => readManifest(write({ requestedMode: undefined })), InvalidRunManifestError);
+    // a 1.2 manifest with an incomplete browser is rejected
+    assert.throws(() => readManifest(write({ browser: { engine: "chromium" } })), /browser config is missing or incomplete/);
+    // a 1.2 manifest with requestedMode !== mode is rejected
+    assert.throws(() => readManifest(write({ requestedMode: "headed" })), /must equal effective mode/);
+
+    // stored 1.0 / 1.1 manifests WITHOUT requestedMode/browser still read successfully
+    for (const v of ["1.0", "1.1"]) {
+      const dir = write({ runLogSchemaVersion: v, mode: "headed", requestedMode: undefined, browser: undefined });
+      const m = readManifest(dir);
+      assert.equal(m.runLogSchemaVersion, v);
+      assert.equal(m.requestedMode, undefined);
+      assert.equal(m.browser, undefined);
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

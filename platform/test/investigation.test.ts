@@ -79,8 +79,11 @@ test("production buildServerArgs is unchanged (frozen headed argv, no --headless
   }
 });
 
-test("run-log schema version is untouched by Task 2 (still 1.1)", () => {
-  assert.equal(RUN_LOG_SCHEMA_VERSION, "1.1");
+test("the investigation launcher writes no run-log (version owned by run/schema)", () => {
+  // The investigation harness has no logger and emits no manifest/events, so it can't
+  // touch the run-log version. (The version itself is bumped to 1.2 by Phase 5 Task 3 and
+  // asserted in run-log.test.ts; here we just confirm the current value the suite sees.)
+  assert.equal(RUN_LOG_SCHEMA_VERSION, "1.2");
 });
 
 // --- reuse of the production path (no duplicate parser/redactor/digest) ------------

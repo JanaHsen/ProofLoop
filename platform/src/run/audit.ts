@@ -18,6 +18,7 @@ import {
   RunManifest,
   StoredSnapshot,
   assertSupportedRunLogSchemaVersion,
+  assertValidModeMetadata,
 } from "./schema";
 
 export interface ReadEventsResult {
@@ -63,6 +64,10 @@ export function readManifest(runDir: string): RunManifest {
     fs.readFileSync(path.join(runDir, "run.json"), "utf8"),
   ) as RunManifest;
   assertSupportedRunLogSchemaVersion(manifest.runLogSchemaVersion);
+  // Version-aware boundary: a "1.2" manifest MUST carry valid, consistent mode metadata
+  // (effective + requested + complete typed browser; requestedMode === mode). Older
+  // "1.0"/"1.1" records may omit requestedMode/browser and are not held to this.
+  if (manifest.runLogSchemaVersion === "1.2") assertValidModeMetadata(manifest);
   return manifest;
 }
 

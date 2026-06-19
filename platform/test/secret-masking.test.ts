@@ -8,6 +8,7 @@ import { parseFlow } from "../src/parser";
 import { ParsedSnapshot, parseSnapshot, digestSnapshot } from "../src/mcp/snapshot";
 import type { ValidatedRef } from "../src/mcp/snapshot";
 import type { ToolResult } from "../src/mcp/client";
+import { browserConfigFor } from "../src/mcp/client";
 import { BrowserActuator, runFlow } from "../src/engine/loop";
 import type { Decider, DecisionContext, DeciderResult } from "../src/engine/decider";
 import { SYSTEM_PROMPT } from "../src/engine/decider";
@@ -16,6 +17,12 @@ import { readEvents, readManifest, verifyAuditChain } from "../src/run/audit";
 import type { RunEvent, StoredSnapshot } from "../src/run/schema";
 
 const NOW = () => new Date("2026-06-18T00:00:00.000Z");
+/** Valid, complete 1.2 mode metadata threaded into every runFlow (headless, desktop). */
+const MODE_META = {
+  mode: "headless" as const,
+  requestedMode: "headless" as const,
+  browser: browserConfigFor("desktop"),
+};
 const USAGE = { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 
 class MockDecider implements Decider {
@@ -94,6 +101,7 @@ async function execMasking() {
     runsRoot,
     model: "claude-sonnet-4-6",
     pricingConfigId: "anthropic-2026-06",
+    ...MODE_META,
     decider,
     actuator,
     now: NOW,
@@ -212,6 +220,7 @@ test("5) password value + rationale are redacted; blocked reason is scrubbed", a
       runsRoot,
       model: "claude-sonnet-4-6",
       pricingConfigId: "anthropic-2026-06",
+      ...MODE_META,
       decider,
       actuator: new MockActuator(() => richSnap()),
       now: NOW,
@@ -250,6 +259,7 @@ test("6) page-change completion is generic (mock non-login flow; prompt has no l
       runsRoot,
       model: "claude-sonnet-4-6",
       pricingConfigId: "anthropic-2026-06",
+      ...MODE_META,
       decider,
       actuator,
       now: NOW,

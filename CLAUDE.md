@@ -73,6 +73,18 @@ proofloop/
   `BASE_URL` + a flow file. It never receives a filesystem path into `app/` and never
   reads the SUT's source. This is how the "browser-only, never reads source" rule is
   *enforced*, not just promised.
+- **Execution mode is launch-seam only** *(from Phase 5)*. `npm run run -- <flow>` runs
+  **headless by default** (the CI path); `--headed` is the only override (local debug).
+  There is **no `--headless` flag** and **no `PROOFLOOP_HEADED` env var** — one override,
+  one source of truth. Headed requested without a display **fails loudly**, never a silent
+  fallback to headless. Mode may be parsed, validated, recorded, and reported, but **only
+  the MCP/browser launch seam** may let it change runtime browser behavior (D32).
+- **Run-log is additive and version-tolerant** *(from Phase 5)*. The run log is at
+  `runLogSchemaVersion` **`1.2`**; every version-aware reader tolerates `1.0`/`1.1`/`1.2`.
+  The manifest records the **effective** `mode`, the **`requestedMode`**, and a **typed
+  `browser`** config (engine, isolation, viewport, accessibility-snapshots, vision-off) —
+  **never raw subprocess arguments**. Re-opening this Phase 2-frozen schema is human-gated
+  and always accompanies this constitution edit.
 - **Never auto-merge** *(from Phase 6)*. The platform posts a verdict; a human approves
   the merge. Always.
 
