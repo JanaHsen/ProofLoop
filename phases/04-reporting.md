@@ -660,8 +660,8 @@ Never label it “accuracy results.”
 
 ### Task 4 — Rendered-output review and presentation artifacts
 
-* [ ] Generate the four selected reports locally from the gitignored run artifacts.
-* [ ] Copy only the approved presentation projections into the tracked presentation tree:
+* [x] Generate the four selected reports locally from the gitignored run artifacts.
+* [x] Copy only the approved presentation projections into the tracked presentation tree:
 
 ```text
 presentation/
@@ -682,11 +682,11 @@ presentation/
         └── report.html
 ```
 
-* [ ] Confirm copied artifacts contain no raw secrets or unsanitized failure details.
-* [ ] Confirm HTML opens locally with the network disabled.
-* [ ] Confirm relative links remain valid.
-* [ ] Confirm reports remain understandable without the AI summary.
-* [ ] If summaries were generated, review every sentence for:
+* [x] Confirm copied artifacts contain no raw secrets or unsanitized failure details.
+* [x] Confirm HTML opens locally with the network disabled.
+* [x] Confirm relative links remain valid.
+* [x] Confirm reports remain understandable without the AI summary.
+* [ ] If summaries were generated, review every sentence for: *(N/A — no AI summaries generated; Task 2 deferred as optional)*
 
   * verdict drift;
   * unsupported accuracy claims;
@@ -704,7 +704,12 @@ presentation/
 
 Do not self-certify or commit presentation artifacts before approval.
 
-✅ **COMMIT:** `docs(presentation): commit Phase 3 demo reports + comparison`
+> ✅ **Rendered-output human gate APPROVED (2026-06-19).** The human directly reviewed
+> `comparison.html` and the four per-run `report.html` pages — content hierarchy, redaction,
+> citation simplification, timeline treatment, human-verified provenance, palette, and
+> responsive behavior. Presentation artifacts committed (see below).
+
+✅ **COMMIT:** `docs(presentation): commit Phase 3 demo reports + comparison` — **done.**
 
 ---
 
@@ -732,27 +737,27 @@ Do not self-certify or commit presentation artifacts before approval.
 
 ## Exit checklist
 
-* [ ] Four explicit `{runId, evaluationId}` pairs confirmed and integrity-checked.
-* [ ] Versioned, deterministic `report.json` generated for all four runs.
-* [ ] Self-contained `report.html` generated for all four runs.
-* [ ] Reports remain complete without AI summaries.
-* [ ] AI summaries, when present, are optional, grounded, one-call-only, and metadata-complete.
-* [ ] Run/evaluation/flow/plan joins validated; mismatches fail loud.
-* [ ] Every criterion is present exactly once.
-* [ ] Every observation is paired 1:1 with its citation validation.
-* [ ] Every artifact-derived string is HTML-escaped.
-* [ ] No external resources or executable scripts.
-* [ ] No raw credentials, API keys, or unsanitized failure details.
-* [ ] Execution status and flow verdict are visually distinct.
-* [ ] Decider and verifier cost/latency are displayed separately.
-* [ ] Timeline step text is joined from the FlowPlan by `stepId`.
-* [ ] Comparison page uses only the human-authored presentation manifest and selected reports.
-* [ ] Visible Phase 3 demonstration caveat is present.
-* [ ] Comparison is not labelled as platform accuracy.
-* [ ] Tests use mocked summaries and pass.
-* [ ] `npm test` passes.
-* [ ] `npm run typecheck` passes.
-* [ ] Presentation artifacts reviewed by the human and committed to the agreed path.
+* [x] Four explicit `{runId, evaluationId}` pairs confirmed and integrity-checked.
+* [x] Versioned, deterministic `report.json` generated for all four runs.
+* [x] Self-contained `report.html` generated for all four runs.
+* [x] Reports remain complete without AI summaries.
+* [ ] AI summaries, when present, are optional, grounded, one-call-only, and metadata-complete. *(deferred — Task 2 optional; no summaries generated yet)*
+* [x] Run/evaluation/flow/plan joins validated; mismatches fail loud.
+* [x] Every criterion is present exactly once.
+* [x] Every observation is paired 1:1 with its citation validation.
+* [x] Every artifact-derived string is HTML-escaped.
+* [x] No external resources or executable scripts.
+* [x] No raw credentials, API keys, or unsanitized failure details.
+* [x] Execution status and flow verdict are visually distinct.
+* [x] Decider and verifier cost/latency are displayed separately.
+* [x] Timeline step text is joined from the FlowPlan by `stepId`.
+* [x] Comparison page uses only the human-authored presentation manifest and selected reports.
+* [x] Visible Phase 3 demonstration caveat is present.
+* [x] Comparison is not labelled as platform accuracy.
+* [ ] Tests use mocked summaries and pass. *(deferred with Task 2 — no summary feature yet; the rest of the suite passes)*
+* [x] `npm test` passes.
+* [x] `npm run typecheck` passes.
+* [x] Presentation artifacts reviewed by the human and committed to the agreed path.
 
 ---
 
