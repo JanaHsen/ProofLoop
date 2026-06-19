@@ -456,5 +456,21 @@
       "type": "flow_end",
       "executionStatus": "completed"
     }
-  ]
+  ],
+  "aiSummary": {
+    "text": "The ProofLoop report for the flow \"Add items to the cart and verify the totals\" has an execution status of completed and a recorded flow verdict of PASS.\n\nAll three criteria passed. The line totals criterion confirmed that a Desk Lamp priced at $24.99 with a quantity of two produced a line total of $49.98, and a Coffee Mug priced at $8.99 with a quantity of one produced a line total of $8.99, with both summing to a subtotal of $58.97 as displayed. The proportional tax criterion confirmed that the recorded tax of $5.90 correctly reflects 10% of the $58.97 subtotal, rounding to the nearest cent. The total reconciliation criterion confirmed that adding the subtotal of $58.97 and the tax of $5.90 yields $64.87, which matches the displayed order total exactly.",
+    "model": "claude-sonnet-4-6",
+    "params": {
+      "promptVersion": "1.0",
+      "max_tokens": 1024,
+      "temperature": 0
+    },
+    "usage": {
+      "inputTokens": 920,
+      "outputTokens": 203
+    },
+    "costUsd": 0.005805,
+    "latencyMs": 5318,
+    "generatedAt": "2026-06-19T16:52:53.646Z"
+  }
 }

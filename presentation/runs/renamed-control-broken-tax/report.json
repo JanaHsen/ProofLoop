@@ -424,5 +424,21 @@
       "type": "flow_end",
       "executionStatus": "completed"
     }
-  ]
+  ],
+  "aiSummary": {
+    "text": "The ProofLoop report for \"Add items to the cart and verify the totals\" has a recorded flow verdict of FAIL. Two of the three criteria passed and one failed.\n\nThe line totals criterion passed: Desk Lamp at $24.99 times two correctly showed $49.98, Coffee Mug at $8.99 times one showed $8.99, and the subtotal of $58.97 matched the sum of those line totals. The total reconciliation criterion also passed, as the displayed Total of $58.97 equaled the recorded Subtotal of $58.97 plus the recorded Tax of $0.00. The proportional tax criterion failed because the criterion requires tax to equal 10% of the subtotal and explicitly states it must not be zero. With a subtotal of $58.97, the expected tax was $5.90, but the cart displayed a tax of $0.00, directly contradicting the requirement. Because this criterion failed, the overall flow verdict is recorded as FAIL.",
+    "model": "claude-sonnet-4-6",
+    "params": {
+      "promptVersion": "1.0",
+      "max_tokens": 1024,
+      "temperature": 0
+    },
+    "usage": {
+      "inputTokens": 895,
+      "outputTokens": 226
+    },
+    "costUsd": 0.006075,
+    "latencyMs": 5003,
+    "generatedAt": "2026-06-19T16:53:06.317Z"
+  }
 }
