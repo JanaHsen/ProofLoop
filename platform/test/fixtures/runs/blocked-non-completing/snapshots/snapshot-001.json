@@ -1,0 +1,61 @@
+{
+  "snapshotId": "snapshot-001",
+  "digest": "sha256:0499f47a6e4f4e2fd5206544a40d47f1354e95637e57c833c91c6b91a5c7c240",
+  "yaml": "- generic [active] [ref=e1]:\n  - heading \"Sign in\" [level=1] [ref=e2]\n  - generic [ref=e3]:\n    - generic [ref=e4]:\n      - text: Username\n      - textbox \"Username\" [ref=e5]\n    - generic [ref=e6]:\n      - text: Password\n      - textbox \"Password\" [ref=e7]\n    - button \"Sign in\" [ref=e8]\n  - link \"Go to products\" [ref=e9] [cursor=pointer]:\n    - /url: https://example.com/next",
+  "refs": [
+    "e1",
+    "e2",
+    "e3",
+    "e4",
+    "e5",
+    "e6",
+    "e7",
+    "e8",
+    "e9"
+  ],
+  "elements": [
+    {
+      "ref": "e1",
+      "role": "generic"
+    },
+    {
+      "ref": "e2",
+      "role": "heading",
+      "name": "Sign in"
+    },
+    {
+      "ref": "e3",
+      "role": "generic"
+    },
+    {
+      "ref": "e4",
+      "role": "generic"
+    },
+    {
+      "ref": "e5",
+      "role": "textbox",
+      "name": "Username"
+    },
+    {
+      "ref": "e6",
+      "role": "generic"
+    },
+    {
+      "ref": "e7",
+      "role": "textbox",
+      "name": "Password"
+    },
+    {
+      "ref": "e8",
+      "role": "button",
+      "name": "Sign in"
+    },
+    {
+      "ref": "e9",
+      "role": "link",
+      "name": "Go to products"
+    }
+  ],
+  "pageUrl": "data:text/html,probe",
+  "pageTitle": "Probe"
+}

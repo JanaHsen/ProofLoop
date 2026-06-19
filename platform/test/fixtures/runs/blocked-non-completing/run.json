@@ -1,0 +1,22 @@
+{
+  "runLogSchemaVersion": "1.1",
+  "runId": "blocked-non-completing",
+  "flowId": "frozen-demo",
+  "planHash": "sha256:frozen-demo-plan",
+  "model": "claude-sonnet-4-6",
+  "mode": "headed",
+  "startedAt": "2026-06-19T00:00:00.000Z",
+  "finishedAt": "2026-06-19T00:00:00.000Z",
+  "executionStatus": "error",
+  "pricingConfigId": "anthropic-2026-06",
+  "totals": {
+    "promptTokens": 0,
+    "completionTokens": 0,
+    "costUsd": 0,
+    "latencyMs": 0,
+    "snapshotCount": 3,
+    "actionCount": 1,
+    "errorCount": 1,
+    "retryCount": 0
+  }
+}

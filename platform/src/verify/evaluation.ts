@@ -38,6 +38,10 @@ export const INCONCLUSIVE_ERROR_CODES = {
   COULD_NOT_EXECUTE: "EXECUTION",
   /** A step completed but its best-effort `step_boundary` snapshot was not captured (D21). */
   MISSING_BOUNDARY_SNAPSHOT: "EXECUTION",
+  /** A terminal criterion / non-completing step needs the terminal snapshot, which the
+   *  best-effort terminal capture never wrote (the outer-catch path; D21). Added in Task 3
+   *  at point of need, parallel to MISSING_BOUNDARY_SNAPSHOT (foreseen at the Task 1 gate). */
+  MISSING_TERMINAL_SNAPSHOT: "EXECUTION",
   /** An MCP/browser transport failure sat in the evidence window — infra, not the app. */
   MCP_TRANSPORT_ERROR: "EXECUTION",
   /** The verifier model returned a response that failed schema validation (D22). */

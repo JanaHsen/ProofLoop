@@ -1,0 +1,136 @@
+{
+  "snapshotId": "snapshot-005",
+  "digest": "sha256:ab274a9d46c2e846416bddae32a1cc2c68be38add1251781ded58e3fd83ffc3c",
+  "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - generic [ref=e8]:\n        - text: Signed in as\n        - strong [ref=e9]: alice\n      - button \"Log out\" [ref=e11] [cursor=pointer]\n  - main [ref=e12]:\n    - heading \"ProofLoop System Under Test\" [level=1] [ref=e13]\n    - paragraph [ref=e14]: \"The minimal app the ProofLoop platform tests against. Four flow surfaces:\"\n    - list [ref=e15]:\n      - listitem [ref=e16]:\n        - link \"Login\" [ref=e17] [cursor=pointer]:\n          - /url: /login\n        - text: — real server-side session\n      - listitem [ref=e18]:\n        - link \"Products & add-to-cart\" [ref=e19] [cursor=pointer]:\n          - /url: /products\n        - text: — requires login\n      - listitem [ref=e20]:\n        - link \"Cart & checkout\" [ref=e21] [cursor=pointer]:\n          - /url: /cart\n        - text: — requires login\n      - listitem [ref=e22]:\n        - link \"Validated form\" [ref=e23] [cursor=pointer]:\n          - /url: /form\n        - text: — public\n    - paragraph [ref=e24]: Clean baseline (no toggles active).",
+  "refs": [
+    "e1",
+    "e2",
+    "e3",
+    "e4",
+    "e5",
+    "e6",
+    "e7",
+    "e8",
+    "e9",
+    "e11",
+    "e12",
+    "e13",
+    "e14",
+    "e15",
+    "e16",
+    "e17",
+    "e18",
+    "e19",
+    "e20",
+    "e21",
+    "e22",
+    "e23",
+    "e24"
+  ],
+  "elements": [
+    {
+      "ref": "e1",
+      "role": "generic"
+    },
+    {
+      "ref": "e2",
+      "role": "banner"
+    },
+    {
+      "ref": "e3",
+      "role": "link",
+      "name": "ProofLoop SUT"
+    },
+    {
+      "ref": "e4",
+      "role": "navigation"
+    },
+    {
+      "ref": "e5",
+      "role": "link",
+      "name": "Products"
+    },
+    {
+      "ref": "e6",
+      "role": "link",
+      "name": "Cart"
+    },
+    {
+      "ref": "e7",
+      "role": "link",
+      "name": "Form"
+    },
+    {
+      "ref": "e8",
+      "role": "generic"
+    },
+    {
+      "ref": "e9",
+      "role": "strong"
+    },
+    {
+      "ref": "e11",
+      "role": "button",
+      "name": "Log out"
+    },
+    {
+      "ref": "e12",
+      "role": "main"
+    },
+    {
+      "ref": "e13",
+      "role": "heading",
+      "name": "ProofLoop System Under Test"
+    },
+    {
+      "ref": "e14",
+      "role": "paragraph"
+    },
+    {
+      "ref": "e15",
+      "role": "list"
+    },
+    {
+      "ref": "e16",
+      "role": "listitem"
+    },
+    {
+      "ref": "e17",
+      "role": "link",
+      "name": "Login"
+    },
+    {
+      "ref": "e18",
+      "role": "listitem"
+    },
+    {
+      "ref": "e19",
+      "role": "link",
+      "name": "Products & add-to-cart"
+    },
+    {
+      "ref": "e20",
+      "role": "listitem"
+    },
+    {
+      "ref": "e21",
+      "role": "link",
+      "name": "Cart & checkout"
+    },
+    {
+      "ref": "e22",
+      "role": "listitem"
+    },
+    {
+      "ref": "e23",
+      "role": "link",
+      "name": "Validated form"
+    },
+    {
+      "ref": "e24",
+      "role": "paragraph"
+    }
+  ],
+  "pageUrl": "http://localhost:3000/",
+  "pageTitle": "Home"
+}

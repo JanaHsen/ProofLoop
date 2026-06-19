@@ -1,0 +1,22 @@
+{
+  "runLogSchemaVersion": "1.0",
+  "runId": "add-to-cart-2026-06-18T21-34-32-463Z-d1908fac",
+  "flowId": "add-to-cart",
+  "planHash": "sha256:ad29fd82a319402998f7c169321d47e49fcf84d188e0cdb74820d47e049f1352",
+  "model": "claude-sonnet-4-6",
+  "mode": "headed",
+  "startedAt": "2026-06-18T21:34:32.491Z",
+  "finishedAt": "2026-06-18T21:35:29.941Z",
+  "executionStatus": "completed",
+  "pricingConfigId": "anthropic-2026-06",
+  "totals": {
+    "promptTokens": 26842,
+    "completionTokens": 2034,
+    "costUsd": 0.11103599999999998,
+    "latencyMs": 49300,
+    "snapshotCount": 22,
+    "actionCount": 10,
+    "errorCount": 1,
+    "retryCount": 1
+  }
+}

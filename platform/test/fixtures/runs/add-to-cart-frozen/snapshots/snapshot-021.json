@@ -1,0 +1,257 @@
+{
+  "snapshotId": "snapshot-021",
+  "digest": "sha256:918e247ae5d59b5bcd44fb1da5e2e8238cdcfc27a902181e3b44b82df2ce9c5d",
+  "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - generic [ref=e8]:\n        - text: Signed in as\n        - strong [ref=e9]: alice\n      - button \"Log out\" [ref=e11] [cursor=pointer]\n  - main [ref=e12]:\n    - heading \"Your Cart\" [level=1] [ref=e13]\n    - table [ref=e14]:\n      - rowgroup [ref=e15]:\n        - row \"Item Unit Qty Line total\" [ref=e16]:\n          - columnheader \"Item\" [ref=e17]\n          - columnheader \"Unit\" [ref=e18]\n          - columnheader \"Qty\" [ref=e19]\n          - columnheader \"Line total\" [ref=e20]\n      - rowgroup [ref=e21]:\n        - row \"Desk Lamp $24.99 2 $49.98\" [ref=e22]:\n          - cell \"Desk Lamp\" [ref=e23]\n          - cell \"$24.99\" [ref=e24]\n          - cell \"2\" [ref=e25]\n          - cell \"$49.98\" [ref=e26]\n        - row \"Coffee Mug $8.99 1 $8.99\" [ref=e27]:\n          - cell \"Coffee Mug\" [ref=e28]\n          - cell \"$8.99\" [ref=e29]\n          - cell \"1\" [ref=e30]\n          - cell \"$8.99\" [ref=e31]\n      - rowgroup [ref=e32]:\n        - row \"Subtotal $58.97\" [ref=e33]:\n          - cell \"Subtotal\" [ref=e34]\n          - cell \"$58.97\" [ref=e35]\n        - row \"Tax $5.90\" [ref=e36]:\n          - cell \"Tax\" [ref=e37]\n          - cell \"$5.90\" [ref=e38]\n        - row \"Total $64.87\" [ref=e39]:\n          - cell \"Total\" [ref=e40]:\n            - strong [ref=e41]: Total\n          - cell \"$64.87\" [ref=e42]:\n            - strong [ref=e43]: $64.87\n    - button \"Proceed to Checkout\" [ref=e45] [cursor=pointer]",
+  "refs": [
+    "e1",
+    "e2",
+    "e3",
+    "e4",
+    "e5",
+    "e6",
+    "e7",
+    "e8",
+    "e9",
+    "e11",
+    "e12",
+    "e13",
+    "e14",
+    "e15",
+    "e16",
+    "e17",
+    "e18",
+    "e19",
+    "e20",
+    "e21",
+    "e22",
+    "e23",
+    "e24",
+    "e25",
+    "e26",
+    "e27",
+    "e28",
+    "e29",
+    "e30",
+    "e31",
+    "e32",
+    "e33",
+    "e34",
+    "e35",
+    "e36",
+    "e37",
+    "e38",
+    "e39",
+    "e40",
+    "e41",
+    "e42",
+    "e43",
+    "e45"
+  ],
+  "elements": [
+    {
+      "ref": "e1",
+      "role": "generic"
+    },
+    {
+      "ref": "e2",
+      "role": "banner"
+    },
+    {
+      "ref": "e3",
+      "role": "link",
+      "name": "ProofLoop SUT"
+    },
+    {
+      "ref": "e4",
+      "role": "navigation"
+    },
+    {
+      "ref": "e5",
+      "role": "link",
+      "name": "Products"
+    },
+    {
+      "ref": "e6",
+      "role": "link",
+      "name": "Cart"
+    },
+    {
+      "ref": "e7",
+      "role": "link",
+      "name": "Form"
+    },
+    {
+      "ref": "e8",
+      "role": "generic"
+    },
+    {
+      "ref": "e9",
+      "role": "strong"
+    },
+    {
+      "ref": "e11",
+      "role": "button",
+      "name": "Log out"
+    },
+    {
+      "ref": "e12",
+      "role": "main"
+    },
+    {
+      "ref": "e13",
+      "role": "heading",
+      "name": "Your Cart"
+    },
+    {
+      "ref": "e14",
+      "role": "table"
+    },
+    {
+      "ref": "e15",
+      "role": "rowgroup"
+    },
+    {
+      "ref": "e16",
+      "role": "row",
+      "name": "Item Unit Qty Line total"
+    },
+    {
+      "ref": "e17",
+      "role": "columnheader",
+      "name": "Item"
+    },
+    {
+      "ref": "e18",
+      "role": "columnheader",
+      "name": "Unit"
+    },
+    {
+      "ref": "e19",
+      "role": "columnheader",
+      "name": "Qty"
+    },
+    {
+      "ref": "e20",
+      "role": "columnheader",
+      "name": "Line total"
+    },
+    {
+      "ref": "e21",
+      "role": "rowgroup"
+    },
+    {
+      "ref": "e22",
+      "role": "row",
+      "name": "Desk Lamp $24.99 2 $49.98"
+    },
+    {
+      "ref": "e23",
+      "role": "cell",
+      "name": "Desk Lamp"
+    },
+    {
+      "ref": "e24",
+      "role": "cell",
+      "name": "$24.99"
+    },
+    {
+      "ref": "e25",
+      "role": "cell",
+      "name": "2"
+    },
+    {
+      "ref": "e26",
+      "role": "cell",
+      "name": "$49.98"
+    },
+    {
+      "ref": "e27",
+      "role": "row",
+      "name": "Coffee Mug $8.99 1 $8.99"
+    },
+    {
+      "ref": "e28",
+      "role": "cell",
+      "name": "Coffee Mug"
+    },
+    {
+      "ref": "e29",
+      "role": "cell",
+      "name": "$8.99"
+    },
+    {
+      "ref": "e30",
+      "role": "cell",
+      "name": "1"
+    },
+    {
+      "ref": "e31",
+      "role": "cell",
+      "name": "$8.99"
+    },
+    {
+      "ref": "e32",
+      "role": "rowgroup"
+    },
+    {
+      "ref": "e33",
+      "role": "row",
+      "name": "Subtotal $58.97"
+    },
+    {
+      "ref": "e34",
+      "role": "cell",
+      "name": "Subtotal"
+    },
+    {
+      "ref": "e35",
+      "role": "cell",
+      "name": "$58.97"
+    },
+    {
+      "ref": "e36",
+      "role": "row",
+      "name": "Tax $5.90"
+    },
+    {
+      "ref": "e37",
+      "role": "cell",
+      "name": "Tax"
+    },
+    {
+      "ref": "e38",
+      "role": "cell",
+      "name": "$5.90"
+    },
+    {
+      "ref": "e39",
+      "role": "row",
+      "name": "Total $64.87"
+    },
+    {
+      "ref": "e40",
+      "role": "cell",
+      "name": "Total"
+    },
+    {
+      "ref": "e41",
+      "role": "strong"
+    },
+    {
+      "ref": "e42",
+      "role": "cell",
+      "name": "$64.87"
+    },
+    {
+      "ref": "e43",
+      "role": "strong"
+    },
+    {
+      "ref": "e45",
+      "role": "button",
+      "name": "Proceed to Checkout"
+    }
+  ],
+  "pageUrl": "http://localhost:3000/cart",
+  "pageTitle": "Cart"
+}

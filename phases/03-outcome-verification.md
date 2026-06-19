@@ -321,28 +321,28 @@ frozen at a gate; this additive change is re-frozen here).
 *Serves:* the structural layer that hands the verifier the right evidence and nothing else.
 *Next depends on it:* the verifier consumes its output; the writer records it.
 
-- [ ] Implement the resolver under `platform/src/`: given a `FlowPlan` and a run directory,
+- [x] Implement the resolver under `platform/src/`: given a `FlowPlan` and a run directory,
   return, per criterion, the evidence window per D21 (pinned ⇒ boundary-by-stepId + earlier
   boundaries; terminal ⇒ terminal + boundaries; non-completing ⇒ terminal + failed-action/error
   events; never-reached / missing-boundary ⇒ the short-circuit `InconclusiveDetail`). It reads
   snapshot/event records and re-verifies each provided snapshot's digest (reuse the
   `verifyAuditChain` idiom). It performs **no** interpretation of criterion meaning.
-- [ ] Resolve the `after`→`step_boundary` join by `{ kind:"step_boundary", stepId }`, and the
+- [x] Resolve the `after`→`step_boundary` join by `{ kind:"step_boundary", stepId }`, and the
   terminal snapshot by `{ kind:"terminal" }`. (Confirmed present and explicit in 1.x artifacts.)
-- [ ] Tests run against a **committed frozen fixture** under
+- [x] Tests run against a **committed frozen fixture** under
   `platform/test/fixtures/runs/add-to-cart-frozen/` — a sanitized slice of the approved Task 7
   run, clearly marked as frozen evidence. Trim by dropping whole unreferenced events/blobs only;
   **never edit a retained blob's `yaml`** (the digest is computed over that text). Preserve event
   structure, snapshot ids, digests, boundary `stepId`s, and the accessible cart totals; keep
   referential integrity for everything the tests walk.
-  - [ ] terminal criterion ⇒ resolves to the `terminal` snapshot.
-  - [ ] a (synthetic) criterion pinned `(after step 5)` ⇒ resolves to the `S5` `step_boundary`
+  - [x] terminal criterion ⇒ resolves to the `terminal` snapshot.
+  - [x] a (synthetic) criterion pinned `(after step 5)` ⇒ resolves to the `S5` `step_boundary`
     snapshot, and never to a later snapshot.
-  - [ ] a (synthetic, committed) `blocked`/`error` run where a pinned step never completed ⇒
+  - [x] a (synthetic, committed) `blocked`/`error` run where a pinned step never completed ⇒
     resolves to terminal + the failed-action/error evidence for that step.
-  - [ ] a run that terminated before the pinned step ⇒ short-circuits to
+  - [x] a run that terminated before the pinned step ⇒ short-circuits to
     `COULD_NOT_EXECUTE`; a completed step with a missing boundary ⇒ `MISSING_BOUNDARY_SNAPSHOT`.
-  - [ ] digest mismatch on a provided snapshot is surfaced, not silently used.
+  - [x] digest mismatch on a provided snapshot is surfaced, not silently used.
 
 ✅ **COMMIT:** `feat(platform): deterministic criterion→evidence resolver`
 
