@@ -159,6 +159,16 @@ test("buildComparison: builds only from the selected reports and re-states their
   try {
     await tmpRunInRoot(runsRoot, "run-clean", "PASS");
     await tmpRunInRoot(runsRoot, "run-broken", "FAIL");
+    // Stamp a Tax-labelled observation into each evaluation so Tax-evidence derivation (which
+    // reads the report's OWN recorded observation) has something to find.
+    for (const [rid, tax] of [["run-clean", "$5.90"], ["run-broken", "$0.00"]] as const) {
+      const p = path.join(runsRoot, rid, "evaluations", "eval-001", "evaluation.json");
+      const rec = JSON.parse(fs.readFileSync(p, "utf8"));
+      const c2 = rec.criteria.find((c: any) => c.criterionId === "add-to-cart:C2");
+      c2.observations[0].label = "Tax";
+      c2.observations[0].observedText = tax;
+      fs.writeFileSync(p, JSON.stringify(rec, null, 2) + "\n");
+    }
     const manifestPath = path.join(root, "manifest.json");
     fs.writeFileSync(
       manifestPath,
@@ -184,11 +194,13 @@ test("buildComparison: builds only from the selected reports and re-states their
     assert.equal(clean.executionStatus, "completed");
     assert.equal(clean.flowVerdict, "PASS");
     assert.equal(clean.reportHref, "runs/clean/report.html");
+    assert.equal(clean.taxEvidence, "$5.90"); // derived from the report's own observation
     assert.ok(clean.deciderCostUsd > 0 && clean.verifierCostUsd > 0);
 
     const broken = model.runs[1];
     assert.equal(broken.flowVerdict, "FAIL");
     assert.equal(broken.reportHref, "runs/broken-tax/report.html");
+    assert.equal(broken.taxEvidence, "$0.00");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -231,6 +243,7 @@ test("renderComparisonHtml: carries the exact label + caveat, escapes labels, li
           { criterionId: "add-to-cart:C2", verdict: "PASS" as Verdict },
           { criterionId: "add-to-cart:C3", verdict: "PASS" as Verdict },
         ],
+        taxEvidence: "$5.90",
         deciderCostUsd: 0.11,
         verifierCostUsd: 0.13,
         reportHref: "runs/clean/report.html",
@@ -247,6 +260,7 @@ test("renderComparisonHtml: carries the exact label + caveat, escapes labels, li
           { criterionId: "add-to-cart:C2", verdict: "FAIL" as Verdict },
           { criterionId: "add-to-cart:C3", verdict: "PASS" as Verdict },
         ],
+        taxEvidence: "$0.00",
         deciderCostUsd: 0.11,
         verifierCostUsd: 0.14,
         reportHref: "runs/broken-tax/report.html",
@@ -258,14 +272,28 @@ test("renderComparisonHtml: carries the exact label + caveat, escapes labels, li
   assert.ok(html.includes(`<h1>${COMPARISON_SECTION_LABEL}</h1>`));
   assert.ok(html.includes(COMPARISON_CAVEAT));
   assert.ok(!/accuracy results/i.test(html), "never labelled as accuracy results");
+  // the duplicate muted subtitle is gone: the title appears only once, inside <title>
+  assert.equal(html.split("Demo &lt;script&gt;").length - 1, 1, "title not duplicated as a subtitle");
   // escaping: no live tags from manifest/report data
   assert.ok(!html.includes("<script"));
   assert.ok(!html.includes("<img"));
   assert.ok(html.includes("Clean &lt;img src=x&gt;"));
-  assert.ok(html.includes("Demo &lt;script&gt;"));
-  // relative links to the committed per-run reports; no external resources
+  // friendly criterion headers, with the stable id kept as secondary text
+  assert.ok(html.includes("Line totals") && html.includes("Proportional tax") && html.includes("Total reconciliation"));
+  assert.ok(html.includes("<code>add-to-cart:C2</code>"));
+  // Tax evidence column derived per run
+  assert.ok(html.includes("Tax evidence"));
+  assert.ok(html.includes("<td>$5.90</td>") && html.includes("<td>$0.00</td>"));
+  // execution status rendered as a neutral badge, distinct from verdict badges
+  assert.ok(html.includes('class="badge badge-neutral">completed</span>'));
+  // costs formatted to 4 decimals
+  assert.ok(html.includes("$0.1100") && html.includes("$0.1300"));
+  // link text is descriptive, not a filename
+  assert.ok(html.includes("View evidence report") && !html.includes(">report.html<"));
+  // relative links to the committed per-run reports; responsive scroll wrapper; no external resources
   assert.ok(html.includes('href="runs/clean/report.html"'));
   assert.ok(html.includes('href="runs/broken-tax/report.html"'));
+  assert.ok(html.includes('class="table-wrap"'));
   assert.ok(!/<link\b/i.test(html) && !/src\s*=\s*["']https?:/i.test(html));
   assert.ok(html.startsWith("<!DOCTYPE html>"));
 });

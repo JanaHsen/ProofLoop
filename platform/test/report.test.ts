@@ -80,9 +80,25 @@ function mockVerifier(verdict: Verdict): Verifier {
   };
 }
 
+/** A verifier that fails ONLY criterion C2, so a report carries a PASS/FAIL/PASS mix. */
+function mixedVerifier(): Verifier {
+  return {
+    async verify(input: VerifierCriterionInput): Promise<VerifierResult> {
+      const verdict: Verdict = input.criterionId.endsWith(":C2") ? "FAIL" : "PASS";
+      const evaluation = finalizeCriterion(
+        input,
+        { verdict, observations: [validObservation(input.window)], eventObservations: [], reasoning: `decided ${verdict}` },
+        1,
+      );
+      return { evaluation, usage: { ...USAGE }, latencyMs: LATENCY, model: MODEL, toolCallCount: 1, rawVerdict: verdict };
+    },
+  };
+}
+
 /** Temp run dir (copy of the frozen run) with one generated evaluation. Caller removes `root`. */
 async function tmpRunWithEval(
   verdict: Verdict,
+  verifier?: Verifier,
 ): Promise<{ root: string; runDir: string; evaluationId: string }> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "proofloop-report-"));
   const runDir = path.join(root, "run");
@@ -90,7 +106,7 @@ async function tmpRunWithEval(
   const { evaluationId } = await writeEvaluation({
     runDir,
     flowsDir: FLOWS_DIR,
-    verifier: mockVerifier(verdict),
+    verifier: verifier ?? mockVerifier(verdict),
     verifierModel: MODEL,
     verifierParams: VERIFIER_PARAMS,
     clock: fixedClock(CLOCK),
@@ -157,6 +173,31 @@ test("buildReport: valid PASS report projects source, flow, verdicts, and eviden
     assert.deepEqual(JSON.parse(fs.readFileSync(jsonPath, "utf8")), report);
     const html = fs.readFileSync(htmlPath, "utf8");
     assert.ok(html.startsWith("<!DOCTYPE html>"));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("renderReportHtml: hierarchy, friendly titles, and FAIL prominence (mixed verdicts)", async () => {
+  const { root, runDir, evaluationId } = await tmpRunWithEval("PASS", mixedVerifier());
+  try {
+    const { htmlPath } = writeReport({ runDir, evaluationId, flowsDir: FLOWS_DIR });
+    const html = fs.readFileSync(htmlPath, "utf8");
+
+    // hero: status + verdict + the independence sentence
+    assert.ok(html.includes("Execution completion and verification correctness are independent"));
+    // technical details collapsed into a native <details>; no JS
+    assert.ok(html.includes("<summary>Technical run details</summary>"));
+    assert.ok(html.includes("<summary>Full execution audit trail</summary>"));
+    assert.ok(!html.includes("<script"));
+    // friendly criterion titles with the stable id kept as smaller secondary code
+    assert.ok(html.includes("Line totals") && html.includes("Proportional tax") && html.includes("Total reconciliation"));
+    assert.ok(html.includes('<code class="cid">add-to-cart:C2</code>'));
+    // all three criteria are rendered; only the failed one (C2) is accented
+    assert.equal(html.split('<span class="criterion-title">').length - 1, 3, "all criteria stay visible");
+    assert.equal(html.split('class="criterion criterion-fail"').length - 1, 1, "only the failed criterion is accented");
+    // compact step timeline present
+    assert.ok(html.includes("Actions performed"));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -724,10 +765,14 @@ test("renderReportHtml: every artifact-derived field is escaped; no live tags in
   assert.ok(!/<link\b/i.test(html) && !/src\s*=\s*["']https?:/i.test(html));
 });
 
-test("renderReportHtml: invalid citation checks render visibly", () => {
+test("renderReportHtml: citation status is summarised; invalid checks render visibly", () => {
   const html = renderReportHtml(synthReport());
   assert.ok(html.includes("citation-invalid"), "invalid citation row is marked");
-  assert.ok(html.includes("check-bad"), "a failed check is highlighted, not hidden");
+  assert.ok(html.includes("✓ Validated"), "valid citations collapse to a single status");
+  assert.ok(html.includes("✕ Invalid"), "an invalid citation is shown, not hidden");
+  // the specific failed checks are listed beneath the invalid marker
+  assert.ok(html.includes("failed-checks"));
+  assert.ok(html.includes("ref present") && html.includes("observed text present"));
 });
 
 test("renderReportHtml: normalizedValue renders only when present", () => {

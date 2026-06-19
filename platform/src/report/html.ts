@@ -16,6 +16,7 @@ import type {
   CitationValidation,
   Observation,
 } from "../verify/evaluation";
+import { criterionLabel } from "./labels";
 import type {
   ReportCriterion,
   ReportTimelineEntry,
@@ -44,24 +45,42 @@ export function verdictBadge(verdict: string): string {
   return `<span class="badge ${cls}">${escapeHtml(verdict)}</span>`;
 }
 
+/** Display formatting only — 4 decimals. `report.json` retains full-precision cost numbers. */
 function money(n: number): string {
-  return `$${n.toFixed(6)}`;
+  return `$${n.toFixed(4)}`;
 }
 
-/** A boolean citation check, coloured by pass/fail so a failed check is impossible to miss. */
-function checkCell(ok: boolean): string {
-  return ok
-    ? `<td class="check-ok">true</td>`
-    : `<td class="check-bad">false</td>`;
+/** Human labels for the four citation checks — used to name a FAILED check explicitly. */
+const CHECK_LABELS: Array<[keyof CitationValidation, string]> = [
+  ["snapshotProvided", "snapshot provided"],
+  ["digestMatches", "digest matches"],
+  ["refPresent", "ref present"],
+  ["observedTextPresent", "observed text present"],
+];
+
+/**
+ * Render the citation status for one observation. A valid citation collapses to "✓ Validated";
+ * an invalid one shows "✕ Invalid" and lists exactly which checks failed (plus any reason).
+ * The full boolean structure stays in `report.json` — this is the HTML summary of it.
+ */
+function citationStatus(v: CitationValidation): string {
+  if (v.valid) return `<span class="check-ok">✓ Validated</span>`;
+  const failed = CHECK_LABELS.filter(([k]) => v[k] === false).map(([, label]) => label);
+  if (v.reason !== undefined && v.reason !== "") failed.push(escapeHtml(v.reason));
+  const list =
+    failed.length > 0
+      ? `<ul class="failed-checks">${failed.map((f) => `<li>${escapeHtml(f)}</li>`).join("")}</ul>`
+      : "";
+  return `<span class="check-bad">✕ Invalid</span>${list}`;
 }
 
-function observationRows(
+function evidenceRows(
   observations: Observation[],
   validations: CitationValidation[],
 ): string {
   // observations.length === validations.length is asserted at build time (D28).
   if (observations.length === 0) {
-    return `<tr><td colspan="11" class="muted">No observations recorded for this criterion.</td></tr>`;
+    return `<tr><td colspan="4" class="muted">No observations recorded for this criterion.</td></tr>`;
   }
   return observations
     .map((o, i) => {
@@ -71,21 +90,11 @@ function observationRows(
         o.normalizedValue !== undefined
           ? `<div class="normalized">normalized: ${escapeHtml(o.normalizedValue)}</div>`
           : "";
-      const reason =
-        v.reason !== undefined && v.reason !== ""
-          ? `<div class="reason">${escapeHtml(v.reason)}</div>`
-          : "";
       return `<tr${rowClass}>
   <td>${escapeHtml(o.label)}</td>
   <td><code>${escapeHtml(o.observedText)}</code>${normalized}</td>
-  <td><code>${escapeHtml(o.snapshotId)}</code></td>
-  <td><code>${escapeHtml(o.ref)}</code></td>
-  ${checkCell(v.snapshotProvided)}
-  ${checkCell(v.digestMatches)}
-  ${checkCell(v.refPresent)}
-  ${checkCell(v.observedTextPresent)}
-  ${checkCell(v.valid)}
-  <td>${reason || '<span class="muted">—</span>'}</td>
+  <td><code>${escapeHtml(o.snapshotId)}</code> · <code>${escapeHtml(o.ref)}</code></td>
+  <td>${citationStatus(v)}</td>
 </tr>`;
     })
     .join("\n");
@@ -104,24 +113,82 @@ function criterionSection(c: ReportCriterion): string {
             : ""
         } — ${escapeHtml(c.inconclusiveDetail.explanation)}</p>`
       : "";
-  return `<section class="criterion">
-  <h3>${escapeHtml(c.criterionId)} ${verdictBadge(c.verdict)}</h3>
+  // The failed criterion is accented (left burgundy bar + tint) so it stands out, while the
+  // passing criteria stay fully visible alongside it.
+  const sectionClass = c.verdict === "FAIL" ? "criterion criterion-fail" : "criterion";
+  return `<section class="${sectionClass}">
+  <h3><span class="criterion-title">${escapeHtml(criterionLabel(c.criterionId))}</span>
+    <code class="cid">${escapeHtml(c.criterionId)}</code> ${verdictBadge(c.verdict)}</h3>
   <p class="criterion-text">${escapeHtml(c.text)}</p>
   ${inconclusive}
   <p class="reasoning"><strong>Verifier reasoning:</strong> ${escapeHtml(c.reasoning) || '<span class="muted">(none recorded)</span>'}</p>
+  <div class="table-wrap">
   <table class="evidence">
     <thead>
-      <tr>
-        <th>Label</th><th>Observed text</th><th>Snapshot</th><th>Ref</th>
-        <th>snapshot<br>Provided</th><th>digest<br>Matches</th><th>ref<br>Present</th>
-        <th>observedText<br>Present</th><th>valid</th><th>reason</th>
-      </tr>
+      <tr><th>Evidence label</th><th>Observed value / text</th><th>Snapshot · ref</th><th>Citation status</th></tr>
     </thead>
     <tbody>
-${observationRows(c.observations, c.citationValidations)}
+${evidenceRows(c.observations, c.citationValidations)}
     </tbody>
   </table>
+  </div>
 </section>`;
+}
+
+/**
+ * Compact step-level timeline derived (render-time only) from the full event timeline: one row
+ * per flow step, summarising the actions performed and whether the step completed. The full
+ * event-level trail remains available verbatim in the "Full execution audit trail" details.
+ */
+function stepSummaryRows(timeline: ReportTimelineEntry[]): string {
+  interface StepRow {
+    ordinal?: number;
+    stepId: string;
+    stepText?: string;
+    actions: string[];
+    completed: boolean;
+  }
+  const byStep = new Map<string, StepRow>();
+  const order: string[] = [];
+  const ensure = (stepId: string, stepText?: string, ordinal?: number): StepRow => {
+    let row = byStep.get(stepId);
+    if (!row) {
+      row = { ordinal, stepId, stepText, actions: [], completed: false };
+      byStep.set(stepId, row);
+      order.push(stepId);
+    }
+    if (ordinal !== undefined) row.ordinal = ordinal;
+    if (stepText !== undefined) row.stepText = stepText;
+    return row;
+  };
+  for (const e of timeline) {
+    if (e.stepId === undefined) continue;
+    const row = ensure(e.stepId, e.stepText, e.ordinal);
+    if (e.type === "action") {
+      row.actions.push(`${e.action ?? "action"} ${e.ref ?? ""} (${e.status ?? "?"})`.trim());
+    } else if (e.type === "step_end") {
+      row.completed = true;
+    }
+  }
+  if (order.length === 0) {
+    return `<tr><td colspan="3" class="muted">No step events recorded.</td></tr>`;
+  }
+  return order
+    .map((id) => {
+      const r = byStep.get(id)!;
+      const label =
+        (r.ordinal !== undefined ? `${escapeHtml(r.ordinal)}. ` : "") +
+        (r.stepText !== undefined ? escapeHtml(r.stepText) : `<code>${escapeHtml(r.stepId)}</code>`);
+      const actions =
+        r.actions.length > 0
+          ? r.actions.map((a) => `<code>${escapeHtml(a)}</code>`).join("<br>")
+          : '<span class="muted">— (navigation / no element action)</span>';
+      const status = r.completed
+        ? `<span class="badge badge-neutral">completed</span>`
+        : `<span class="muted">—</span>`;
+      return `<tr><td>${label}</td><td>${actions}</td><td>${status}</td></tr>`;
+    })
+    .join("\n");
 }
 
 function timelineRows(entries: ReportTimelineEntry[]): string {
@@ -164,41 +231,61 @@ function timelineRows(entries: ReportTimelineEntry[]): string {
 const STYLE = `
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
+  html, body { max-width: 100%; overflow-x: hidden; }
   body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    margin: 0; padding: 2rem; color: #1a1a1a; background: #f6f7f9; line-height: 1.5; }
+    margin: 0; padding: 2rem; color: #2b2226; background: #f7efe3; line-height: 1.5; }
   main { max-width: 980px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
-  h2 { font-size: 1.15rem; margin: 2rem 0 .75rem; border-bottom: 2px solid #e1e4e8; padding-bottom: .3rem; }
-  h3 { font-size: 1rem; margin: 1.25rem 0 .4rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; color: #6e1f2a; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .75rem; border-bottom: 2px solid #e2cdbf; padding-bottom: .3rem; color: #6e1f2a; }
+  h3 { font-size: 1rem; margin: 1.25rem 0 .4rem; color: #6e1f2a; }
   code { font-family: SFMono-Regular, Consolas, Menlo, monospace; font-size: .85em;
-    background: #eef0f2; padding: .05rem .3rem; border-radius: 3px; }
-  .card { background: #fff; border: 1px solid #e1e4e8; border-radius: 8px; padding: 1rem 1.25rem; margin: 0 0 1rem; }
+    background: #f1e4d6; padding: .05rem .3rem; border-radius: 3px; }
+  .card { background: #fffdf8; border: 1px solid #e2cdbf; border-radius: 8px; padding: 1rem 1.25rem; margin: 0 0 1rem; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   .kv { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1rem; }
-  .kv dt { color: #586069; }
+  .kv dt { color: #6b5a52; }
   .kv dd { margin: 0; font-weight: 600; }
   .badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .8rem;
     font-weight: 700; letter-spacing: .03em; vertical-align: middle; }
   .verdict-pass { background: #e6f4ea; color: #1a7f37; border: 1px solid #acd8b8; }
   .verdict-fail { background: #fce8e6; color: #cf222e; border: 1px solid #f1b0aa; }
   .verdict-inconclusive { background: #fff4e5; color: #9a6700; border: 1px solid #f0cd8a; }
-  .distinct { display: flex; gap: 1rem; flex-wrap: wrap; }
-  .distinct .card { flex: 1 1 280px; margin: 0; }
-  .distinct .label { font-size: .8rem; color: #586069; text-transform: uppercase; letter-spacing: .04em; }
-  .distinct .value { font-size: 1.25rem; font-weight: 700; margin-top: .15rem; }
+  .badge-neutral { background: #efe1d0; color: #5b4636; border: 1px solid #d8c0a6; }
+  .hero { border-left: 5px solid #6e1f2a; }
+  .hero-items { display: flex; gap: 2rem; flex-wrap: wrap; }
+  .hero-item .label { font-size: .8rem; color: #6b5a52; text-transform: uppercase; letter-spacing: .04em; }
+  .hero-item .value { font-size: 1.25rem; font-weight: 700; margin-top: .2rem; }
+  .hero-note { margin: .75rem 0 0; }
+  details.tech { background: #fffdf8; border: 1px solid #e2cdbf; border-radius: 8px; padding: .5rem 1rem; margin: 0 0 1rem; }
+  details.tech summary { cursor: pointer; color: #6e1f2a; font-weight: 600; }
+  details.tech[open] summary { margin-bottom: .5rem; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-  th, td { border: 1px solid #e1e4e8; padding: .35rem .5rem; text-align: left; vertical-align: top; }
-  th { background: #f1f3f5; font-weight: 600; }
-  .check-ok { color: #1a7f37; font-weight: 600; }
-  .check-bad { color: #cf222e; font-weight: 700; background: #fce8e6; }
-  tr.citation-invalid { background: #fff6f6; }
-  .muted { color: #8a8f96; }
-  .normalized, .reason, .detail { font-size: .78rem; color: #586069; margin-top: .2rem; }
+  th, td { border: 1px solid #e2cdbf; padding: .35rem .5rem; text-align: left; vertical-align: top; }
+  th { background: #f3e7d9; font-weight: 600; color: #6e1f2a; }
+  .check-ok { color: #1a7f37; font-weight: 700; }
+  .check-bad { color: #cf222e; font-weight: 700; }
+  .failed-checks { margin: .25rem 0 0; padding-left: 1.1rem; font-size: .78rem; color: #cf222e; }
+  tr.citation-invalid { background: #fbeef0; }
+  .muted { color: #6b5a52; }
+  .normalized, .reason, .detail { font-size: .78rem; color: #6b5a52; margin-top: .2rem; }
   .detail.failure { color: #cf222e; }
   .reasoning, .criterion-text { margin: .3rem 0; }
-  .inconclusive-detail { background: #fff4e5; border: 1px solid #f0cd8a; padding: .4rem .6rem; border-radius: 6px; }
+  .criterion { padding: .25rem 0; }
+  .criterion + .criterion { border-top: 1px solid #eaddcc; margin-top: .5rem; padding-top: .75rem; }
+  .criterion-fail { border-left: 4px solid #cf222e; background: #fdf3f3; border-radius: 6px;
+    padding: .25rem .75rem .5rem; margin-top: .75rem; }
+  .criterion-title { font-size: 1.05rem; }
+  code.cid { font-size: .72rem; color: #6b5a52; background: transparent; }
+  .inconclusive-detail { background: #fbeede; border: 1px solid #dcae8f; padding: .4rem .6rem; border-radius: 6px; }
   ol.steps li, ul.criteria li { margin: .25rem 0; }
-  footer { color: #8a8f96; font-size: .8rem; margin-top: 2rem; }
+  code.break { overflow-wrap: anywhere; word-break: break-all; }
+  footer { color: #6b5a52; font-size: .8rem; margin-top: 2rem; }
+  @media (max-width: 700px) {
+    body { padding: 1rem; }
+    .grid { grid-template-columns: 1fr; }
+    .hero-items { gap: 1rem; }
+  }
 `;
 
 /** Render a complete, self-contained HTML document for one report. */
@@ -250,34 +337,37 @@ export function renderReportHtml(report: RunReport): string {
 <main>
   <h1>${escapeHtml(f.name)}</h1>
   ${description}
-  <div class="card">
+
+  <div class="card hero">
+    <div class="hero-items">
+      <div class="hero-item">
+        <div class="label">Execution status</div>
+        <div class="value"><span class="badge badge-neutral">${escapeHtml(ex.status)}</span></div>
+      </div>
+      <div class="hero-item">
+        <div class="label">Flow verdict</div>
+        <div class="value">${verdictBadge(ve.flowVerdict)}</div>
+      </div>
+    </div>
+    <p class="muted hero-note">Execution completion and verification correctness are independent:
+    a run can finish successfully and still fail verification.</p>
+  </div>
+
+  <details class="tech">
+    <summary>Technical run details</summary>
     <dl class="kv">
-      <dt>Flow id</dt><dd><code>${escapeHtml(f.id)}</code></dd>
-      <dt>Entry</dt><dd><code>${escapeHtml(f.entry)}</code></dd>
-      <dt>Viewport</dt><dd>${escapeHtml(f.viewport)}</dd>
-      <dt>Run id</dt><dd><code>${escapeHtml(report.source.runId)}</code></dd>
+      <dt>Run id</dt><dd><code class="break">${escapeHtml(report.source.runId)}</code></dd>
       <dt>Evaluation id</dt><dd><code>${escapeHtml(report.source.evaluationId)}</code></dd>
-      <dt>Plan hash</dt><dd><code>${escapeHtml(report.source.planHash)}</code></dd>
+      <dt>Plan hash</dt><dd><code class="break">${escapeHtml(report.source.planHash)}</code></dd>
       <dt>Schema versions</dt><dd>report ${escapeHtml(report.reportSchemaVersion)} ·
         run ${escapeHtml(report.source.runLogSchemaVersion)} ·
         evaluation ${escapeHtml(report.source.evaluationRecordSchemaVersion)} ·
         flow ${escapeHtml(report.source.flowPlanSchemaVersion)}</dd>
+      <dt>Entry</dt><dd><code>${escapeHtml(f.entry)}</code></dd>
+      <dt>Viewport</dt><dd>${escapeHtml(f.viewport)}</dd>
+      <dt>Flow id</dt><dd><code>${escapeHtml(f.id)}</code></dd>
     </dl>
-  </div>
-
-  <h2>Outcome</h2>
-  <div class="distinct">
-    <div class="card">
-      <div class="label">Execution status</div>
-      <div class="value">${escapeHtml(ex.status)}</div>
-      <p class="muted">Whether the run finished — independent of correctness.</p>
-    </div>
-    <div class="card">
-      <div class="label">Flow verdict</div>
-      <div class="value">${verdictBadge(ve.flowVerdict)}</div>
-      <p class="muted">Whether the user-facing intent was achieved — judged by the verifier.</p>
-    </div>
-  </div>
+  </details>
 
   <h2>Flow steps</h2>
   <div class="card"><ol class="steps">
@@ -324,14 +414,27 @@ ${ve.criteria.map(criterionSection).join("\n")}
     </div>
   </div>
 
-  <h2>Action timeline</h2>
+  <h2>Timeline</h2>
   <div class="card">
+    <div class="table-wrap">
     <table>
-      <thead><tr><th>Seq</th><th>Type</th><th>Step</th><th>Step text</th><th>Detail</th></tr></thead>
+      <thead><tr><th>Step</th><th>Actions performed</th><th>Status</th></tr></thead>
       <tbody>
-${timelineRows(report.timeline)}
+${stepSummaryRows(report.timeline)}
       </tbody>
     </table>
+    </div>
+    <details class="tech">
+      <summary>Full execution audit trail</summary>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Seq</th><th>Type</th><th>Step</th><th>Step text</th><th>Detail</th></tr></thead>
+        <tbody>
+${timelineRows(report.timeline)}
+        </tbody>
+      </table>
+      </div>
+    </details>
   </div>
 
   ${aiSummary}
