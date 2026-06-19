@@ -186,6 +186,19 @@ export class PlaywrightMcpClient {
   }
 
   /**
+   * The exact argv for the managed @playwright/mcp subprocess. Production returns the
+   * frozen headed config verbatim (`buildServerArgs`); this method exists ONLY as a
+   * behavior-preserving override seam so a clearly-marked investigation/test subclass
+   * can supply the headed/headless toggle (Phase 5 Task 2) WITHOUT introducing a mode
+   * parameter into the production options/CLI/manifest surface — that production mode
+   * plumbing is Phase 5 Task 3. Production callers never override this, so the launched
+   * argv is identical to `buildServerArgs(this.opts)`.
+   */
+  protected buildLaunchArgs(): string[] {
+    return buildServerArgs(this.opts);
+  }
+
+  /**
    * Launch the managed subprocess, run MCP init, and assert the capability surface.
    * Throws (and tears itself down) on any failure so no half-open browser survives.
    */
@@ -205,7 +218,7 @@ export class PlaywrightMcpClient {
       );
       this.transport = new StdioClientTransport({
         command: process.execPath,
-        args: buildServerArgs(this.opts),
+        args: this.buildLaunchArgs(),
         env: stripSensitiveEnv(getDefaultEnvironment()),
         cwd: this.opts.outputDir,
         stderr: "pipe",
