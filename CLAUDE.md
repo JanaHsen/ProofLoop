@@ -53,6 +53,8 @@ proofloop/
 ├── fixtures/
 │   ├── bug-ledger.yaml   # GROUND TRUTH: seeded bugs + structure mutations + expected verdicts
 │   └── flows/            # *.flow.md — plain-English flow definitions (Phase 1+)
+├── presentation/         # tracked demonstration artifacts — e.g. phase5-parity.json
+│                         #   (Phase 5 Task 7 deterministic cross-mode parity report)
 ├── phases/               # the phase runbooks (specs you execute, in order)
 └── .github/workflows/    # CI (Phase 6)
 ```

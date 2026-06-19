@@ -432,36 +432,65 @@ human gate. Do not proceed until approved.
 labelled.
 *Next depends on it:* nothing in Phase 5; it is the phase's demonstration deliverable.
 
-- [ ] Run the **same** clean flow (`add-to-cart`, `PROOFLOOP_BUGS` empty) once **headless**
+- [x] Run the **same** clean flow (`add-to-cart`, `PROOFLOOP_BUGS` empty) once **headless**
   and once **headed**, both fresh under schema `1.2` (a clean same-schema pair — do not pair
   against an older `1.1` headed run).
-- [ ] Both executions complete; verify each frozen artifact with `verifyAuditChain`.
-- [ ] Run Phase 3 verification (post-hoc replay) over each; confirm both selected evaluation
+- [x] Both executions complete; verify each frozen artifact with `verifyAuditChain`.
+- [x] Run Phase 3 verification (post-hoc replay) over each; confirm both selected evaluation
   records return the **same** flow verdict.
-- [ ] Emit a **deterministic JSON parity artifact** (`PARITY_REPORT_SCHEMA_VERSION = "1.0"`,
-  stable key ordering) recording:
-  - both run IDs;
-  - the shared flow ID and `planHash`;
-  - requested and effective modes for each run;
-  - the checkpoint-pairing method;
-  - the normalized snapshot comparison results (with diffs where any);
-  - execution statuses;
-  - selected evaluation IDs and verdicts;
-  - a visible non-determinism caveat.
-- [ ] Embed this caveat verbatim in the artifact (and any optional HTML render):
+- [x] Emit a **deterministic JSON parity artifact** (`PARITY_REPORT_SCHEMA_VERSION = "1.0"`,
+  stable key ordering) recording: both run IDs; shared flow ID + `planHash`; requested+effective
+  modes; the structural checkpoint results; execution statuses; selected evaluation IDs +
+  verdicts; the verbatim caveat. (`presentation/phase5-parity.json`; generator
+  `platform/src/parity/parity-report.ts`.)
+- [x] Embed this caveat verbatim in the artifact (and any optional HTML render).
+- [x] Optional HTML render only — **not produced** (JSON is mandatory; HTML optional and not
+  needed for the gate).
 
-  > This is a single-run cross-mode demonstration, not a statistical proof of deterministic
-  > parity. Both the executor and the verifier contain intentional LLM non-determinism (D18).
-  > Verdict agreement here shows the same flow ran headed and headless to the same recorded
-  > verdict on this run; repeated cross-mode verdict stability is measured in Phase 8.
-
-- [ ] Optional HTML render only: if produced, it inherits the Phase 4 D29 hygiene (escape
-  every artifact-derived string, inline CSS only, no scripts, no external resources). HTML is
-  not required for the gate.
+> **Task 7 RESULT (2026-06-20) — live two-mode demonstration, clean SUT (`bugs:[]`).**
+> Run through the **production CLI/launcher**; both runs fresh under schema `1.2`.
+> - **Headed** run `add-to-cart-2026-06-19T20-48-43-995Z-3ae86d80`, eval `eval-001`,
+>   requested=effective=`headed`, browser {chromium, isolated, 1280×720, a11y on, vision off},
+>   `executionStatus=completed`, `verifyAuditChain` ok (10 actions), decider $0.1113, verifier $0.1365, **flowVerdict=PASS** (PASS,PASS,PASS).
+> - **Headless** run `add-to-cart-2026-06-19T20-50-06-485Z-20cb8e6b`, eval `eval-001`,
+>   requested=effective=`headless`, browser {identical}, `executionStatus=completed`,
+>   `verifyAuditChain` ok (8 actions), decider $0.0997, verifier $0.1354, **flowVerdict=PASS** (PASS,PASS,PASS).
+> - **Shared** flowId `add-to-cart`, **planHash** `sha256:ad29fd82…1352` (equal across both;
+>   reparse matches). **Verdicts agree (PASS == PASS).**
+> - **Structural proof (Task 6, embedded):** `/login` & `/form` byte-identical across modes
+>   (`/login` `sha256:dad365c4…0626`, `/form` `sha256:291973ef…7725`), `differences: []`,
+>   **dropped-field allow-list empty**.
+> - **Security:** no confidential secret residue. The flow-owned `alice/password123` is masked
+>   (`[REDACTED]`); no Anthropic/API key, session secret, bearer token, or environment secret
+>   appears in either run directory; no selector/coordinate action. The snapshots contain one
+>   **intentionally public demo-account hint** rendered by the committed SUT (`bob/hunter2`),
+>   classified as **public fixture content** (provenance: `app/src/views/login.ejs`,
+>   `app/src/store.ts`; not from `.env`/key/flow/operator/decider/verifier/private account); it
+>   is **excluded** from the parity artifact. Run directories are gitignored; no snapshot YAML
+>   or page-credential content enters `presentation/phase5-parity.json`. *(Public-hint masking
+>   noted as optional future hardening, not a Phase 5 blocker.)*
+> - Artifact is **byte-identical across regeneration**; contains only run/evaluation metadata,
+>   checkpoint digests/results, statuses, modes, browser config, verdicts, and the caveat.
+> - **No retries or replacement runs**; exactly one execution and one verification per mode.
 
 🚦 **HUMAN GATE:** the human reviews both runs, both verified artifacts, the matching
 verdicts, the parity artifact, and the visible caveat. Do not self-certify or commit
 presentation artifacts before approval.
+
+> ✅ **APPROVED 2026-06-20 — Phase 5 complete.** Both fresh runs of the unchanged `add-to-cart`
+> flow under run-log `1.2`; requested==effective mode; identical typed browser config except
+> mode; both completed; both audit chains verified; both `eval-001`; both `PASS`; shared
+> `flowId`+`planHash` (reparses to the same hash); the deterministic Task 6 structural proof
+> stays separate from the Task 7 live demonstration; `presentation/phase5-parity.json` is
+> byte-deterministic with the verbatim caveat; no confidential secret residue; `bob/hunter2`
+> recorded only as intentionally public SUT fixture content and absent from the artifact; no
+> retries or replacement executions.
+>
+> **Process note (provenance check).** Confirming the provenance of the public `bob/hunter2`
+> hint by reading `app/` source was a **one-time human-side provenance check, outside the
+> platform pipeline**. That source was NOT supplied to the executor, verifier, report
+> generator, or parity artifact, and must **not** become a platform dependency — the black-box
+> boundary (URL + flow only) is unchanged.
 
 ✅ **COMMIT:** `feat(platform): two-mode live demonstration + deterministic parity artifact`
 
@@ -511,11 +540,11 @@ presentation artifacts before approval.
 - [x] D32 isolation proven by code inspection plus targeted tests.
 - [x] Controlled checkpoints are semantically equivalent across modes after the frozen
   normalization, asserted deterministically and offline.
-- [ ] One clean flow runs headed and one headless, both fresh under `1.2`, both complete, both
+- [x] One clean flow runs headed and one headless, both fresh under `1.2`, both complete, both
   artifacts verify, both verdicts match.
-- [ ] Deterministic JSON parity artifact produced with the full field set and the visible
+- [x] Deterministic JSON parity artifact produced with the full field set and the visible
   non-determinism caveat; verdict agreement labelled a demonstration, not proof.
-- [ ] `npm test` and `npm run typecheck` pass.
+- [x] `npm test` and `npm run typecheck` pass.
 
 ---
 

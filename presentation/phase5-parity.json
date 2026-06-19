@@ -1,0 +1,79 @@
+{
+  "parityReportSchemaVersion": "1.0",
+  "claim": {
+    "structuralProof": "deterministic checkpoint parity",
+    "liveResult": "single-run cross-mode demonstration"
+  },
+  "flow": {
+    "flowId": "add-to-cart",
+    "planHash": "sha256:ad29fd82a319402998f7c169321d47e49fcf84d188e0cdb74820d47e049f1352"
+  },
+  "structuralProof": {
+    "sourceTask": "Phase 5 Task 6",
+    "launcher": "production PlaywrightMcpClient",
+    "method": "harness-navigated, LLM-free controlled checkpoints",
+    "droppedFields": [],
+    "checkpoints": [
+      {
+        "path": "/login",
+        "headedDigest": "sha256:dad365c470af0f71d5dc00b36fa9772b0e264a9e4220fe778c209e80d9f10626",
+        "headlessDigest": "sha256:dad365c470af0f71d5dc00b36fa9772b0e264a9e4220fe778c209e80d9f10626",
+        "yamlByteEqual": true,
+        "normalizedEqual": true,
+        "differences": []
+      },
+      {
+        "path": "/form",
+        "headedDigest": "sha256:291973ef276b530d9f5f27b094d05a638d8d7ad7f5a0669cb526c63cd7b77725",
+        "headlessDigest": "sha256:291973ef276b530d9f5f27b094d05a638d8d7ad7f5a0669cb526c63cd7b77725",
+        "yamlByteEqual": true,
+        "normalizedEqual": true,
+        "differences": []
+      }
+    ]
+  },
+  "demonstration": {
+    "headed": {
+      "runId": "add-to-cart-2026-06-19T20-48-43-995Z-3ae86d80",
+      "evaluationId": "eval-001",
+      "requestedMode": "headed",
+      "effectiveMode": "headed",
+      "browser": {
+        "engine": "chromium",
+        "isolated": true,
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "accessibilitySnapshots": true,
+        "visionEnabled": false
+      },
+      "executionStatus": "completed",
+      "auditVerified": true,
+      "flowVerdict": "PASS"
+    },
+    "headless": {
+      "runId": "add-to-cart-2026-06-19T20-50-06-485Z-20cb8e6b",
+      "evaluationId": "eval-001",
+      "requestedMode": "headless",
+      "effectiveMode": "headless",
+      "browser": {
+        "engine": "chromium",
+        "isolated": true,
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "accessibilitySnapshots": true,
+        "visionEnabled": false
+      },
+      "executionStatus": "completed",
+      "auditVerified": true,
+      "flowVerdict": "PASS"
+    },
+    "sameFlowId": true,
+    "samePlanHash": true,
+    "sameVerdict": true
+  },
+  "caveat": "This is a single-run cross-mode demonstration, not a statistical proof of deterministic parity. Both the executor and the verifier contain intentional LLM non-determinism (D18). Verdict agreement here shows the same flow ran headed and headless to the same recorded verdict on this run; repeated cross-mode verdict stability is measured in Phase 8."
+}
