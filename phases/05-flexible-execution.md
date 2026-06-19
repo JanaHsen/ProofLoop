@@ -382,13 +382,17 @@ human gate. Do not proceed until approved.
 *Serves:* the D32 invariant, enforced rather than asserted.
 *Next depends on it:* it is the structural half of the exit criterion.
 
-- [ ] Code-inspection record: enumerate every site that reads the mode value and classify
+- [x] Code-inspection record: enumerate every site that reads the mode value and classify
   each as parse / validate / record / report / **launch**. Confirm the only site that lets
   mode change runtime browser behavior is the launch seam.
-- [ ] Targeted tests proving no execution-loop, prompting, verification, evidence-resolution,
+  *(Record: [`platform/test/architecture/mode-isolation.md`](../platform/test/architecture/mode-isolation.md);
+  sole runtime branch = `resolveLaunchArgs`.)*
+- [x] Targeted tests proving no execution-loop, prompting, verification, evidence-resolution,
   verdict, reporting, guard, or redaction path branches on mode (e.g. the same fixed inputs
   produce identical decisions/evidence/verdict records regardless of a mode value, since mode
-  never enters those code paths).
+  never enters those code paths). *(`platform/test/mode-isolation.test.ts`: launch-seam, loop
+  invariance, prompt isolation, evidence/verdict invariance, guard+cost invariance, report
+  invariance, and a static source-surface guard — 8 tests.)*
 
 ✅ **COMMIT:** `test(platform): mode-isolation architecture proof (D32)`
 
@@ -487,7 +491,7 @@ presentation artifacts before approval.
   contract.
 - [x] Normalizer is closed-by-default, field-aware, derived only from Task 2 deltas, frozen at
   a gate, and passes the full negative-guard suite; it emits structured diffs.
-- [ ] D32 isolation proven by code inspection plus targeted tests.
+- [x] D32 isolation proven by code inspection plus targeted tests.
 - [ ] Controlled checkpoints are semantically equivalent across modes after the frozen
   normalization, asserted deterministically and offline.
 - [ ] One clean flow runs headed and one headless, both fresh under `1.2`, both complete, both
