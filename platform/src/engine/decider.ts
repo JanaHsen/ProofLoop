@@ -20,6 +20,7 @@ import type { RawUsage } from "../run/pricing";
 import {
   DECISION_TOOL_DESCRIPTION,
   DECISION_TOOL_NAME,
+  DECISION_TOOL_STRICT,
   DecisionFailure,
   buildCorrectionNotice,
   buildDecisionToolSchema,
@@ -157,6 +158,10 @@ export class AnthropicDecider implements Decider {
         // ref enum steers the model to the current snapshot's refs (validation in
         // the harness stays authoritative).
         input_schema: buildDecisionToolSchema(ctx.snapshot.refs),
+        // Strict tool use: the provider enforces the nested `decision` discriminated
+        // union (const discriminators + complete required + additionalProperties:false),
+        // rejecting malformed variants up front. parseDecision still re-validates.
+        strict: DECISION_TOOL_STRICT,
       },
     ];
     const t0 = Date.now();

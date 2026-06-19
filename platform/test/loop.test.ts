@@ -53,7 +53,11 @@ class MockDecider implements Decider {
   private calls = 0;
   async decide(ctx: DecisionContext): Promise<DeciderResult> {
     this.seen.push(ctx);
-    const rawDecision = this.script(ctx, this.calls++);
+    // The real decider returns the tool input wrapped under `decision`. Mirror that:
+    // a script returning an inner variant is wrapped; returning undefined simulates
+    // "no tool call at all" (rawDecision undefined), as the real decider does.
+    const inner = this.script(ctx, this.calls++);
+    const rawDecision = inner === undefined ? undefined : { decision: inner };
     return { rawDecision, usage: { ...USAGE }, latencyMs: 5, model: "claude-sonnet-4-6" };
   }
 }
@@ -296,6 +300,26 @@ test("schema-invalid: one correction then error; tokens still accounted in total
     assert.equal(types(out.events, "llm_decision").length, 0);
     // tokens accrued via addTotals even with no llm_decision events (2 decider calls)
     assert.equal(out.manifest.totals.promptTokens, 200);
+  } finally {
+    cleanup();
+  }
+});
+
+test("malformed action (no verb) never reaches the actuator; one bounded correction then error", async () => {
+  // a structurally-broken action (kind=action but no click/type verb) must be caught by
+  // parseDecision at the dispatch gate — the actuator's clickRef/typeRef are never reached.
+  const decider = new MockDecider(() => ({ kind: "action", ref: "e8", rationale: "go" }));
+  const actuator = new MockActuator(() => loginSnap());
+  const { out, cleanup } = await execute(decider, actuator);
+  try {
+    assert.equal(out.manifest.executionStatus, "error");
+    // the malformed decision NEVER reached the actuator (no real action dispatched)
+    assert.equal(actuator.clicks.length, 0);
+    assert.equal(actuator.types.length, 0);
+    // exactly one bounded informed correction, then error-stop
+    assert.equal(types(out.events, "error").filter((e) => (e as { code: string }).code === "SCHEMA_INVALID").length, 2);
+    assert.equal(types(out.events, "retry").length, 1);
+    assert.equal(types(out.events, "llm_decision").length, 0);
   } finally {
     cleanup();
   }

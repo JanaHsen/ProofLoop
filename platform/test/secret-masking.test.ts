@@ -24,7 +24,10 @@ class MockDecider implements Decider {
   private n = 0;
   async decide(ctx: DecisionContext): Promise<DeciderResult> {
     this.seen.push(ctx);
-    return { rawDecision: this.script(ctx, this.n++), usage: { ...USAGE }, latencyMs: 5, model: "claude-sonnet-4-6" };
+    // Mirror the real decider: the tool input is wrapped under `decision`.
+    const inner = this.script(ctx, this.n++);
+    const rawDecision = inner === undefined ? undefined : { decision: inner };
+    return { rawDecision, usage: { ...USAGE }, latencyMs: 5, model: "claude-sonnet-4-6" };
   }
 }
 class MockActuator implements BrowserActuator {

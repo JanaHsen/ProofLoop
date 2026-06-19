@@ -59,63 +59,139 @@ export const DECISION_TOOL_DESCRIPTION =
   "— ref must be one of the refs in the current snapshot.";
 
 /**
- * Base JSON Schema for the decision tool. Conditional requirements (action needs
- * ref+rationale, type needs value, …) are enforced by parseDecision, not the schema —
- * tool-use providers honor `enum`/`type` reliably but not cross-field conditionals.
+ * Whether the decision tool is registered as a strict tool. With strict tools the
+ * provider enforces the schema — including the nested `decision` discriminated union
+ * below — so a malformed variant is rejected at the provider before it ever returns.
+ * This is an early-rejection/steering aid; parseDecision remains the authoritative gate.
+ */
+export const DECISION_TOOL_STRICT = true;
+
+/**
+ * Base JSON Schema for the decision tool.
+ *
+ * The Anthropic API rejects `oneOf`/`allOf`/`anyOf` at the TOP LEVEL of an
+ * input_schema (HTTP 400). So the top level is an ordinary object with a single
+ * required `decision` property, and the discriminated union lives one level down as
+ * `decision.anyOf`. Each branch is complete: a `const` discriminator, every field it
+ * needs in `required`, and `additionalProperties:false`. Combined with strict tool
+ * use this lets the provider reject malformed variants up front — but parseDecision
+ * still re-validates every field; the harness never trusts the provider's enforcement.
  */
 export const DECISION_TOOL_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
-    kind: {
-      type: "string",
-      enum: ["action", "step_complete", "blocked"],
-      description: "Which kind of decision this is.",
-    },
-    action: {
-      type: "string",
-      enum: ["click", "type"],
-      description: "For kind=action only: the element action to perform.",
-    },
-    ref: {
-      type: "string",
-      description:
-        "For kind=action only: the eN ref of the target element, taken verbatim " +
-        "from the current snapshot.",
-    },
-    value: {
-      type: "string",
-      description: "For action=type only: the text to type.",
-    },
-    rationale: {
-      type: "string",
-      description: "For kind=action or step_complete: a one-sentence reason.",
-    },
-    reason: {
-      type: "string",
-      description: "For kind=blocked only: why the step cannot proceed.",
+    decision: {
+      anyOf: [
+        {
+          // click
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "action" },
+            action: { const: "click" },
+            ref: {
+              type: "string",
+              description:
+                "The eN ref of the element to click, taken verbatim from the " +
+                "current snapshot.",
+            },
+            rationale: {
+              type: "string",
+              description: "A one-sentence reason for this click.",
+            },
+          },
+          required: ["kind", "action", "ref", "rationale"],
+        },
+        {
+          // type
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "action" },
+            action: { const: "type" },
+            ref: {
+              type: "string",
+              description:
+                "The eN ref of the field to type into, taken verbatim from the " +
+                "current snapshot.",
+            },
+            value: {
+              type: "string",
+              description: "The text to type into the field.",
+            },
+            rationale: {
+              type: "string",
+              description: "A one-sentence reason for typing this value here.",
+            },
+          },
+          required: ["kind", "action", "ref", "value", "rationale"],
+        },
+        {
+          // step_complete
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "step_complete" },
+            rationale: {
+              type: "string",
+              description:
+                "A one-sentence reason the requested action is done and a " +
+                "response was observed.",
+            },
+          },
+          required: ["kind", "rationale"],
+        },
+        {
+          // blocked
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "blocked" },
+            reason: {
+              type: "string",
+              description: "Why the step cannot proceed.",
+            },
+          },
+          required: ["kind", "reason"],
+        },
+      ],
     },
   },
-  required: ["kind"],
+  required: ["decision"],
 } as const;
+
+/** Shape of the mutable deep clone produced for per-call ref steering. */
+type MutableDecisionSchema = {
+  properties: {
+    decision: {
+      anyOf: Array<{ properties: { ref?: { enum?: string[] } } }>;
+    };
+  };
+};
 
 /**
  * The decision tool schema with the `ref` field constrained to the refs actually in
- * the current snapshot — a steering aid that cuts invalid-ref retries. It NEVER
- * replaces validateRef: the harness check against the snapshot remains authoritative.
+ * the current snapshot — a steering aid that cuts invalid-ref retries. The enum is
+ * injected into the click and type branches (the only branches with a `ref`). It
+ * NEVER replaces validateRef: the harness check against the snapshot remains
+ * authoritative.
  */
 export function buildDecisionToolSchema(
   refs: Iterable<string>,
 ): Record<string, unknown> {
   const refList = [...refs];
-  const schema: Record<string, unknown> = JSON.parse(
+  const schema: MutableDecisionSchema = JSON.parse(
     JSON.stringify(DECISION_TOOL_SCHEMA),
   );
   if (refList.length > 0) {
-    (schema.properties as Record<string, Record<string, unknown>>).ref.enum =
-      refList;
+    for (const branch of schema.properties.decision.anyOf) {
+      if (branch.properties.ref) {
+        branch.properties.ref.enum = refList;
+      }
+    }
   }
-  return schema;
+  return schema as unknown as Record<string, unknown>;
 }
 
 // --- schema validation of the returned decision -----------------------------------
@@ -133,7 +209,17 @@ export function parseDecision(raw: unknown): DecisionParse {
   if (typeof raw !== "object" || raw === null) {
     return { ok: false, error: "decision must be a JSON object" };
   }
-  const o = raw as Record<string, unknown>;
+  // The tool input wraps the chosen variant under a single `decision` property (the
+  // provider-enforced discriminated union). Unwrap it, then apply the authoritative
+  // per-field validation below — the harness never trusts the provider's enforcement.
+  const inner = (raw as Record<string, unknown>).decision;
+  if (typeof inner !== "object" || inner === null) {
+    return {
+      ok: false,
+      error: "tool input must wrap the chosen variant under a `decision` property",
+    };
+  }
+  const o = inner as Record<string, unknown>;
   switch (o.kind) {
     case "action": {
       if (o.action !== "click" && o.action !== "type") {

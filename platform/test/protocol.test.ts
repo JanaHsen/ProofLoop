@@ -5,6 +5,7 @@ import * as path from "node:path";
 
 import {
   DECISION_TOOL_SCHEMA,
+  DECISION_TOOL_STRICT,
   INVALID_SNAPSHOT_REF,
   MAX_CORRECTIONS_PER_DECISION,
   buildCorrectionNotice,
@@ -27,48 +28,107 @@ const SNAP = parseSnapshot(
 );
 
 // --- decision schema validation ---------------------------------------------------
+//
+// The tool input wraps the chosen variant under a single `decision` property (the
+// provider-enforced discriminated union); parseDecision unwraps it then re-validates
+// every field. `wrap` mirrors that envelope so each case documents the real contract.
+
+const wrap = (decision: unknown) => ({ decision });
+
+// helper to read the anyOf branches out of either the base or a built schema
+const branchesOf = (schema: unknown): Array<Record<string, any>> =>
+  (((schema as any).properties.decision.anyOf) as Array<Record<string, any>>);
 
 test("parseDecision: valid click action", () => {
-  const r = parseDecision({ kind: "action", action: "click", ref: "e8", rationale: "submit" });
+  const r = parseDecision(wrap({ kind: "action", action: "click", ref: "e8", rationale: "submit" }));
   assert.ok(r.ok && r.decision.kind === "action" && r.decision.action === "click");
 });
 
-test("parseDecision: type requires value", () => {
-  const ok = parseDecision({ kind: "action", action: "type", ref: "e5", value: "alice", rationale: "fill" });
+test("parseDecision: valid type action carries the value", () => {
+  const ok = parseDecision(wrap({ kind: "action", action: "type", ref: "e5", value: "alice", rationale: "fill" }));
   assert.ok(ok.ok && ok.decision.kind === "action" && ok.decision.value === "alice");
-  const bad = parseDecision({ kind: "action", action: "type", ref: "e5", rationale: "fill" });
+});
+
+test("parseDecision: valid step_complete and blocked", () => {
+  const sc = parseDecision(wrap({ kind: "step_complete", rationale: "done" }));
+  assert.ok(sc.ok && sc.decision.kind === "step_complete");
+  const bl = parseDecision(wrap({ kind: "blocked", reason: "no control" }));
+  assert.ok(bl.ok && bl.decision.kind === "blocked");
+});
+
+test("parseDecision: type requires a value", () => {
+  const bad = parseDecision(wrap({ kind: "action", action: "type", ref: "e5", rationale: "fill" }));
   assert.ok(!bad.ok && /value/.test(bad.error));
 });
 
 test("parseDecision: action requires ref and rationale", () => {
-  assert.ok(!parseDecision({ kind: "action", action: "click", rationale: "x" }).ok);
-  assert.ok(!parseDecision({ kind: "action", action: "click", ref: "e8" }).ok);
+  assert.ok(!parseDecision(wrap({ kind: "action", action: "click", rationale: "x" })).ok); // missing ref
+  assert.ok(!parseDecision(wrap({ kind: "action", action: "click", ref: "e8" })).ok); // missing rationale
+});
+
+test("parseDecision: action requires a supported verb", () => {
+  assert.ok(!parseDecision(wrap({ kind: "action", ref: "e8", rationale: "x" })).ok); // no verb
+  assert.ok(!parseDecision(wrap({ kind: "action", action: "hover", ref: "e8", rationale: "x" })).ok); // unsupported verb
 });
 
 test("parseDecision: step_complete needs rationale, blocked needs reason", () => {
-  assert.ok(parseDecision({ kind: "step_complete", rationale: "done" }).ok);
-  assert.ok(!parseDecision({ kind: "step_complete" }).ok);
-  assert.ok(parseDecision({ kind: "blocked", reason: "no control" }).ok);
-  assert.ok(!parseDecision({ kind: "blocked" }).ok);
+  assert.ok(!parseDecision(wrap({ kind: "step_complete" })).ok);
+  assert.ok(!parseDecision(wrap({ kind: "blocked" })).ok);
 });
 
-test("parseDecision: rejects unknown kind / non-object", () => {
-  assert.ok(!parseDecision({ kind: "navigate" }).ok);
+test("parseDecision: rejects unknown kind, missing wrapper, and non-object", () => {
+  assert.ok(!parseDecision(wrap({ kind: "navigate" })).ok);
+  // an UNWRAPPED decision (no `decision` envelope) is rejected — it never validates as-is
+  const unwrapped = parseDecision({ kind: "action", action: "click", ref: "e8", rationale: "x" });
+  assert.ok(!unwrapped.ok && /decision/.test(unwrapped.error));
+  // a wrapper whose decision is not an object is rejected
+  assert.ok(!parseDecision({ decision: "nope" }).ok);
+  assert.ok(!parseDecision({ decision: null }).ok);
+  // non-object / null raw input is rejected before unwrapping
   assert.ok(!parseDecision("nope").ok);
   assert.ok(!parseDecision(null).ok);
 });
 
-test("buildDecisionToolSchema: steers ref to the current snapshot's refs", () => {
-  const schema = buildDecisionToolSchema(SNAP.refs);
-  const refProp = (schema.properties as Record<string, Record<string, unknown>>).ref;
-  assert.deepEqual([...(refProp.enum as string[])].sort(), [...SNAP.refs].sort());
+test("buildDecisionToolSchema: steers ref to the snapshot's refs in the action branches", () => {
+  const refBranches = branchesOf(buildDecisionToolSchema(SNAP.refs)).filter((b) => b.properties.ref);
+  // both action branches (click, type) carry a ref and receive the enum
+  assert.equal(refBranches.length, 2);
+  for (const b of refBranches) {
+    assert.deepEqual([...(b.properties.ref.enum as string[])].sort(), [...SNAP.refs].sort());
+  }
   // base schema is untouched (no enum) — steering is per-call only
-  assert.equal((DECISION_TOOL_SCHEMA.properties as { ref: { enum?: unknown } }).ref.enum, undefined);
+  for (const b of branchesOf(DECISION_TOOL_SCHEMA)) {
+    if (b.properties.ref) assert.equal(b.properties.ref.enum, undefined);
+  }
   // empty refs => no enum injected
-  assert.equal(
-    (buildDecisionToolSchema([]).properties as Record<string, Record<string, unknown>>).ref.enum,
-    undefined,
-  );
+  for (const b of branchesOf(buildDecisionToolSchema([]))) {
+    if (b.properties.ref) assert.equal(b.properties.ref.enum, undefined);
+  }
+});
+
+test("DECISION_TOOL_SCHEMA: plain-object top level wrapping a 4-branch decision union", () => {
+  // top level must NOT use anyOf/oneOf/allOf — Anthropic rejects those at the top level
+  assert.equal((DECISION_TOOL_SCHEMA as any).type, "object");
+  assert.equal((DECISION_TOOL_SCHEMA as any).additionalProperties, false);
+  assert.deepEqual([...(DECISION_TOOL_SCHEMA as any).required], ["decision"]);
+  assert.ok(!("anyOf" in DECISION_TOOL_SCHEMA));
+  assert.ok(!("oneOf" in DECISION_TOOL_SCHEMA));
+  assert.ok(!("allOf" in DECISION_TOOL_SCHEMA));
+  const branches = branchesOf(DECISION_TOOL_SCHEMA);
+  assert.equal(branches.length, 4);
+  // every branch is a closed object with a const kind discriminator and complete required
+  for (const b of branches) {
+    assert.equal(b.type, "object");
+    assert.equal(b.additionalProperties, false);
+    assert.equal(typeof b.properties.kind.const, "string");
+    for (const key of b.required as string[]) assert.ok(key in b.properties);
+  }
+  // exactly the four supported variants are present
+  const variantKeys = branches
+    .map((b) => (b.properties.action ? `action:${b.properties.action.const}` : `${b.properties.kind.const}`))
+    .sort();
+  assert.deepEqual(variantKeys, ["action:click", "action:type", "blocked", "step_complete"]);
+  assert.equal(DECISION_TOOL_STRICT, true);
 });
 
 // --- ref validation (the authoritative check) -------------------------------------
