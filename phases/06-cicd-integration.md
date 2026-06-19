@@ -608,15 +608,33 @@ Done within the gate-frozen D38/D39 contract; tests + `npm run typecheck` green
 ---
 
 ### Task 2 — Static CI flow manifest + loader
-* [ ] Add tracked `platform/config/ci-flows.json` (shape per the data contract;
+* [x] Add tracked `platform/config/ci-flows.json` (shape per the data contract;
   the five canonical flows in order).
-* [ ] Add a loader/validator (`platform/src/…`) that: parses the manifest; rejects an
+* [x] Add a loader/validator (`platform/src/…`) that: parses the manifest; rejects an
   unsupported `schemaVersion`; resolves each path repo-root-relative to absolute;
   asserts each file exists, parses to a `FlowPlan`, and appears once; rejects
   duplicates and out-of-tree paths.
-* [ ] Tests: valid manifest loads to five resolved flows; missing file fails;
+* [x] Tests: valid manifest loads to five resolved flows; missing file fails;
   unknown `schemaVersion` fails; nonexistent flow path fails; duplicate fails;
   path outside `fixtures/flows/` fails.
+
+#### Task 2 — implementation notes (2026-06-20)
+
+* **Manifest:** `platform/config/ci-flows.json` — `schemaVersion "1.0"` + the five canonical
+  flow paths in the frozen order; **no** verdicts/bug-IDs/selectors/ledger/model/CI-env data.
+* **Loader:** `platform/src/ci/flow-manifest.ts` → `loadCiFlowManifest({ manifestPath?,
+  repoRoot? })` returns `{ schemaVersion, flows: { flowPath, absolutePath, flowId }[] }` in
+  manifest order. `flowPath` is the verbatim repo-relative string (matches
+  `CiFlowResult.flowPath`, D43); `absolutePath` is resolved against the **repo root**, never
+  `process.cwd()` (defaults derive from the module's `__dirname`). Fails loud via
+  `CiFlowManifestError` — never skips/reorders/infers/falls back.
+* **Validation:** strict JSON; only `schemaVersion "1.0"`; unknown top-level keys rejected;
+  `flows` a non-empty array of non-empty strings; absolute paths rejected (posix **and**
+  win32 rules); each path must resolve to a **direct child** of `fixtures/flows/` (one check
+  rejects `..` traversal, sibling dirs, and nested subdirs); `*.flow.md` required; duplicates
+  rejected by normalized absolute path; file must exist; each parsed through the existing
+  Phase 1 `parseFlowFile` (grammar reused verbatim, unchanged).
+* `npm test`: 338 pass, 3 pre-existing `-live` skips, 0 fail; `npm run typecheck` clean.
 
 ✅ **COMMIT:** `feat(platform): tracked CI flow manifest and loader`
 
@@ -796,7 +814,7 @@ Do not self-certify. Do not wire `pull_request` before approval.
   verbatim guard values, the pricing resolver + both model IDs, and SUT boot behavior.
 * [x] `--id-file` works on `run-cli` and `verify-cli`; content is exactly the id.
 * [x] D38 exit-code contract implemented and tested across all three CLIs.
-* [ ] `platform/config/ci-flows.json` tracked, loads to the five flows, contains no
+* [x] `platform/config/ci-flows.json` tracked, loads to the five flows, contains no
   ground truth.
 * [ ] `report:ci` emits deterministic `summary.json` (byte-identical across two runs)
   and escaped `summary.md`; `allPass` never derived from Markdown; no LLM call.

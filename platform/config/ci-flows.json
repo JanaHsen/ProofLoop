@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0",
+  "flows": [
+    "fixtures/flows/login.flow.md",
+    "fixtures/flows/add-to-cart.flow.md",
+    "fixtures/flows/checkout.flow.md",
+    "fixtures/flows/checkout-mobile.flow.md",
+    "fixtures/flows/form.flow.md"
+  ]
+}
