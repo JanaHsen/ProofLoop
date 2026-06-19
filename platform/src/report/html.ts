@@ -278,6 +278,10 @@ const STYLE = `
   .criterion-title { font-size: 1.05rem; }
   code.cid { font-size: .72rem; color: #6b5a52; background: transparent; }
   .inconclusive-detail { background: #fbeede; border: 1px solid #dcae8f; padding: .4rem .6rem; border-radius: 6px; }
+  .aisummary { border-left: 5px solid #6e1f2a; }
+  .ai-banner { background: #fbeede; border: 1px solid #dcae8f; border-radius: 6px;
+    padding: .5rem .75rem; margin: 0 0 .6rem; font-size: .85rem; color: #5b3a2a; }
+  .ai-text { white-space: pre-wrap; margin: 0 0 .6rem; }
   ol.steps li, ul.criteria li { margin: .25rem 0; }
   code.break { overflow-wrap: anywhere; word-break: break-all; }
   footer { color: #6b5a52; font-size: .8rem; margin-top: 2rem; }
@@ -312,17 +316,23 @@ export function renderReportHtml(report: RunReport): string {
     )
     .join("\n");
 
+  // The banner is a HARDCODED template literal (no interpolated artifact data, D29). Only the
+  // summary body and metadata are interpolated, and they are escaped. Absent when no aiSummary.
   const aiSummary =
     report.aiSummary !== undefined
-      ? `<section class="card">
-  <h2>AI summary <span class="muted">(additive — not a verdict)</span></h2>
-  <p>${escapeHtml(report.aiSummary.text)}</p>
-  <dl class="kv">
-    <dt>Model</dt><dd>${escapeHtml(report.aiSummary.model)}</dd>
-    <dt>Generated</dt><dd>${escapeHtml(report.aiSummary.generatedAt)}</dd>
-    <dt>Cost</dt><dd>${escapeHtml(money(report.aiSummary.costUsd))}</dd>
-  </dl>
-</section>`
+      ? `<h2>AI summary</h2>
+  <section class="card aisummary">
+    <p class="ai-banner"><strong>AI-generated narrative.</strong> The recorded verdicts and evidence in this report are authoritative. This summary describes them and does not determine them.</p>
+    <p class="ai-text">${escapeHtml(report.aiSummary.text)}</p>
+    <dl class="kv">
+      <dt>Model</dt><dd><code>${escapeHtml(report.aiSummary.model)}</code></dd>
+      <dt>Prompt version</dt><dd>${escapeHtml(String(report.aiSummary.params.promptVersion ?? "—"))}</dd>
+      <dt>Tokens</dt><dd>${escapeHtml(report.aiSummary.usage.inputTokens)} in / ${escapeHtml(report.aiSummary.usage.outputTokens)} out</dd>
+      <dt>Cost</dt><dd>${escapeHtml(money(report.aiSummary.costUsd))}</dd>
+      <dt>Latency</dt><dd>${escapeHtml(report.aiSummary.latencyMs)} ms</dd>
+      <dt>Generated</dt><dd>${escapeHtml(report.aiSummary.generatedAt)}</dd>
+    </dl>
+  </section>`
       : "";
 
   return `<!DOCTYPE html>

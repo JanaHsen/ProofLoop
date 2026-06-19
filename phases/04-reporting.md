@@ -506,7 +506,13 @@ These generated run-local reports remain gitignored.
 
 *Additive and droppable under the deadline.*
 
-* [ ] Summary generation is opt-in only:
+> **Implemented (code-only; no live call made).** Built per the base list AND the revised
+> `phases/04-Task2-spec` ("Additional constraints and corrections"), which overrides this list
+> where they differ. Opt-in (`--summary`), additive, one-call, fail-open. Tests use mocked
+> summaries only (zero live LLM calls). No live `--summary` call has been made; the demo
+> regeneration with summaries remains a separate, explicit human decision.
+
+* [x] Summary generation is opt-in only:
 
 ```bash
 npm run report -- --run <runId> --evaluation <evaluationId> --summary
@@ -514,7 +520,7 @@ npm run report -- --run <runId> --evaluation <evaluationId> --summary
 
 Ordinary report generation must make no LLM call.
 
-* [ ] Require an explicitly configured summary model, for example:
+* [x] Require an explicitly configured summary model, for example:
 
 ```text
 PROOFLOOP_SUMMARY_MODEL
@@ -522,8 +528,8 @@ PROOFLOOP_SUMMARY_MODEL
 
 Do not silently default to an expensive model.
 
-* [ ] Make one bounded call per selected report, with no automatic retries.
-* [ ] Ground the summary only in the already-built structured report projection:
+* [x] Make one bounded call per selected report, with no automatic retries.
+* [x] Ground the summary only in the already-built structured report projection:
 
   * flow name;
   * execution status;
@@ -531,16 +537,16 @@ Do not silently default to an expensive model.
   * recorded criterion verdicts;
   * recorded reasoning;
   * recorded validated observations.
-* [ ] Do not provide raw snapshots, decider rationales, bug-state labels, expected verdicts,
+* [x] Do not provide raw snapshots, decider rationales, bug-state labels, expected verdicts,
   or the bug ledger.
-* [ ] Instruct the model to:
+* [x] Instruct the model to:
 
   * report the existing verdicts;
   * not re-evaluate;
   * not change or infer a verdict;
   * explain failed or inconclusive criteria in plain language;
   * avoid claims about platform-wide accuracy.
-* [ ] Store the result only in the optional `aiSummary` section, including:
+* [x] Store the result only in the optional `aiSummary` section, including:
 
   * exact model;
   * parameters;
@@ -548,15 +554,15 @@ Do not silently default to an expensive model.
   * cost;
   * latency;
   * timestamp.
-* [ ] If the call fails:
+* [x] If the call fails:
 
   * preserve the complete deterministic report;
   * record or report the summary-generation failure separately;
   * do not convert the run to `INCONCLUSIVE`;
   * do not block HTML generation.
-* [ ] Tests use mocked summary responses only.
-* [ ] At most one live summary call per approved demo run.
-* [ ] No automatic retries.
+* [x] Tests use mocked summary responses only.
+* [x] At most one live summary call per approved demo run. *(enforced one-call-only; no live call made yet)*
+* [x] No automatic retries.
 
 ✅ **COMMIT:** `feat(platform): optional grounded AI summary section`
 
@@ -741,7 +747,7 @@ Do not self-certify or commit presentation artifacts before approval.
 * [x] Versioned, deterministic `report.json` generated for all four runs.
 * [x] Self-contained `report.html` generated for all four runs.
 * [x] Reports remain complete without AI summaries.
-* [ ] AI summaries, when present, are optional, grounded, one-call-only, and metadata-complete. *(deferred — Task 2 optional; no summaries generated yet)*
+* [x] AI summaries, when present, are optional, grounded, one-call-only, and metadata-complete. *(Task 2 implemented; fail-open; no live call made yet)*
 * [x] Run/evaluation/flow/plan joins validated; mismatches fail loud.
 * [x] Every criterion is present exactly once.
 * [x] Every observation is paired 1:1 with its citation validation.
@@ -754,7 +760,7 @@ Do not self-certify or commit presentation artifacts before approval.
 * [x] Comparison page uses only the human-authored presentation manifest and selected reports.
 * [x] Visible Phase 3 demonstration caveat is present.
 * [x] Comparison is not labelled as platform accuracy.
-* [ ] Tests use mocked summaries and pass. *(deferred with Task 2 — no summary feature yet; the rest of the suite passes)*
+* [x] Tests use mocked summaries and pass. *(summary.test.ts — mocked summaries only, zero live LLM calls)*
 * [x] `npm test` passes.
 * [x] `npm run typecheck` passes.
 * [x] Presentation artifacts reviewed by the human and committed to the agreed path.

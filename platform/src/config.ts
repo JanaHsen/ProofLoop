@@ -19,6 +19,13 @@ export interface EngineConfig {
    * `platform/config/pricing.<id>.json` before a live verify run.
    */
   verifierModel?: string;
+  /**
+   * Phase 4 OPTIONAL AI-summary model id — from `PROOFLOOP_SUMMARY_MODEL`; **no default**.
+   * Read here so the report CLI can preflight it when `--summary` is requested. An absent or
+   * unpriced model is a SUMMARY failure (fail-open: deterministic report still written, exit
+   * 0), never a silent fallback to a paid model. `.env.example` documents it.
+   */
+  summaryModel?: string;
   /** From ANTHROPIC_API_KEY; undefined if absent (CLI errors before any live call). */
   anthropicApiKey?: string;
   pricingConfigId: string;
@@ -33,6 +40,7 @@ export function readEngineConfig(
     // No default: a missing verifier model must fail loudly at the live call site
     // (requireVerifierModel), never silently fall back to a paid model.
     verifierModel: env.PROOFLOOP_VERIFIER_MODEL,
+    summaryModel: env.PROOFLOOP_SUMMARY_MODEL,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
     pricingConfigId: env.PROOFLOOP_PRICING_CONFIG ?? "anthropic-2026-06",
   };

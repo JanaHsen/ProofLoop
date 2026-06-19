@@ -242,17 +242,25 @@ test("buildReport: explicit evaluation selection — the named record is the one
   }
 });
 
-test("parseReportArgs: requires BOTH flags; never defaults an evaluation", () => {
+test("parseReportArgs: requires BOTH flags; never defaults an evaluation; --summary is opt-in", () => {
   assert.deepEqual(parseReportArgs(["--run", "r", "--evaluation", "eval-001"]), {
     runId: "r",
     evaluationId: "eval-001",
+    summary: false,
   });
   assert.deepEqual(parseReportArgs(["--evaluation", "eval-001", "--run", "r"]), {
     runId: "r",
     evaluationId: "eval-001",
+    summary: false,
+  });
+  assert.deepEqual(parseReportArgs(["--run", "r", "--evaluation", "eval-001", "--summary"]), {
+    runId: "r",
+    evaluationId: "eval-001",
+    summary: true,
   });
   assert.equal(parseReportArgs(["--run", "r"]), null, "missing --evaluation is not resolved");
   assert.equal(parseReportArgs(["--evaluation", "eval-001"]), null);
+  assert.equal(parseReportArgs(["--summary"]), null, "--summary alone is not a report request");
   assert.equal(parseReportArgs([]), null);
   assert.equal(parseReportArgs(["--run", "r", "--latest"]), null);
 });
