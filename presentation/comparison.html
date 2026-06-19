@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 3 regression demonstration</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 2rem; color: #2b2226; background: #f7efe3; line-height: 1.5; }
+  main { max-width: 1040px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .75rem; color: #6e1f2a; }
+  h2 { font-size: 1.1rem; margin: 1.5rem 0 .5rem; color: #6e1f2a; }
+  code { font-family: SFMono-Regular, Consolas, Menlo, monospace; font-size: .85em;
+    background: #f1e4d6; padding: .05rem .3rem; border-radius: 3px; }
+  .card { background: #fffdf8; border: 1px solid #e2cdbf; border-radius: 8px;
+    padding: 1rem 1.25rem; margin: 0 0 1rem; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .88rem; }
+  th, td { border: 1px solid #e2cdbf; padding: .5rem .6rem; text-align: left; vertical-align: top; }
+  th { background: #f3e7d9; font-weight: 600; color: #6e1f2a; }
+  th .cid { font-weight: 400; margin-top: .2rem; }
+  .badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .78rem;
+    font-weight: 700; letter-spacing: .03em; white-space: nowrap; }
+  .verdict-pass { background: #e6f4ea; color: #1a7f37; border: 1px solid #acd8b8; }
+  .verdict-fail { background: #fce8e6; color: #cf222e; border: 1px solid #f1b0aa; }
+  .verdict-inconclusive { background: #fff4e5; color: #9a6700; border: 1px solid #f0cd8a; }
+  .badge-neutral { background: #efe1d0; color: #5b4636; border: 1px solid #d8c0a6; }
+  .muted { color: #6b5a52; }
+  .caveat { background: #fbeede; border: 1px solid #dcae8f; border-radius: 8px;
+    padding: .9rem 1.1rem; margin: 0 0 1.25rem; color: #5b3a2a; }
+  .catcher { font-size: .9rem; }
+  .provenance { border-left: 5px solid #6e1f2a; font-size: .9rem; }
+  a { color: #6e1f2a; }
+  @media (max-width: 700px) { body { padding: 1rem; } th, td { word-break: break-word; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Phase 3 regression demonstration</h1>
+
+  <div class="caveat">This is a focused Phase 3 regression demonstration. It shows that ProofLoop adapted to one harmless structural change while still detecting one targeted behavioral regression. It is not a platform-wide accuracy result across the complete bug ledger. Broader accuracy, false-pass/false-fail measurement, and reliability evaluation belong to Phases 7–8.</div>
+
+  <div class="card">
+    <p>All four executions <strong>completed</strong>; only the behaviorally buggy states failed
+    verification. A renamed control (a harmless structural change) did not change a verdict.</p>
+    <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>State</th><th>Execution status</th><th>Flow verdict</th>
+          <th>Line totals<div class="cid"><code>add-to-cart:C1</code></div></th><th>Proportional tax<div class="cid"><code>add-to-cart:C2</code></div></th><th>Total reconciliation<div class="cid"><code>add-to-cart:C3</code></div></th>
+          <th>Tax evidence</th>
+          <th>Decider cost</th><th>Verifier cost</th><th>Report</th>
+        </tr>
+      </thead>
+      <tbody>
+<tr>
+  <td><strong>Clean</strong><div class="muted"><code>add-to-cart-2026-06-18T21-34-32-463Z-d1908fac</code><br><code>eval-001</code></div></td>
+  <td><span class="badge badge-neutral">completed</span></td>
+  <td><span class="badge verdict-pass">PASS</span></td>
+  <td><span class="badge verdict-pass">PASS</span></td><td><span class="badge verdict-pass">PASS</span></td><td><span class="badge verdict-pass">PASS</span></td>
+  <td>$5.90</td>
+  <td>$0.1110</td>
+  <td>$0.1365</td>
+  <td><a href="runs/clean/report.html">View evidence report</a></td>
+</tr>
+<tr>
+  <td><strong>Renamed control</strong><div class="muted"><code>add-to-cart-2026-06-19T11-17-07-018Z-51cd9564</code><br><code>eval-001</code></div></td>
+  <td><span class="badge badge-neutral">completed</span></td>
+  <td><span class="badge verdict-pass">PASS</span></td>
+  <td><span class="badge verdict-pass">PASS</span></td><td><span class="badge verdict-pass">PASS</span></td><td><span class="badge verdict-pass">PASS</span></td>
+  <td>$5.90</td>
+  <td>$0.0966</td>
+  <td>$0.1397</td>
+  <td><a href="runs/renamed-control/report.html">View evidence report</a></td>
+</tr>
+<tr>
+  <td><strong>Broken tax</strong><div class="muted"><code>add-to-cart-2026-06-19T11-21-55-992Z-57f2c78f</code><br><code>eval-001</code></div></td>
+  <td><span class="badge badge-neutral">completed</span></td>
+  <td><span class="badge verdict-fail">FAIL</span></td>
+  <td><span class="badge verdict-pass">PASS</span></td><td><span class="badge verdict-fail">FAIL</span></td><td><span class="badge verdict-pass">PASS</span></td>
+  <td>$0.00</td>
+  <td>$0.1113</td>
+  <td>$0.1381</td>
+  <td><a href="runs/broken-tax/report.html">View evidence report</a></td>
+</tr>
+<tr>
+  <td><strong>Renamed control + broken tax</strong><div class="muted"><code>add-to-cart-2026-06-19T11-23-44-691Z-8686ccd2</code><br><code>eval-001</code></div></td>
+  <td><span class="badge badge-neutral">completed</span></td>
+  <td><span class="badge verdict-fail">FAIL</span></td>
+  <td><span class="badge verdict-pass">PASS</span></td><td><span class="badge verdict-fail">FAIL</span></td><td><span class="badge verdict-pass">PASS</span></td>
+  <td>$0.00</td>
+  <td>$0.1111</td>
+  <td>$0.1381</td>
+  <td><a href="runs/renamed-control-broken-tax/report.html">View evidence report</a></td>
+</tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card catcher">
+    <h2>Catcher criterion</h2>
+    <p>The behavioral regression is caught by the proportional-Tax criterion, not the
+    reconcile invariant: correct Tax evidence yields <strong>PASS</strong>, while a
+    <code>$0.00</code> Tax yields <strong>FAIL</strong> — even though Subtotal + Tax still
+    equals the displayed Total. Per-criterion verdicts and the Tax evidence column above show
+    this contrast directly.</p>
+  </div>
+
+  <div class="card provenance">
+    <h2>Human-verified artifact provenance</h2>
+    <p class="muted">The add-control's accessible name was verified manually from the stored
+    pre-action snapshots during the read-only audit. ProofLoop does not infer bug or mutation
+    state from artifacts; the state labels come only from the human-authored presentation
+    manifest. Self-heal: under the renamed control the executor still located and clicked the
+    add-control by intent.</p>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>State</th><th>Observed add-control</th></tr></thead>
+      <tbody>
+<tr><td><strong>Clean</strong></td><td><code>Add to Cart</code></td></tr>
+<tr><td><strong>Renamed control</strong></td><td><code>Add to Bag</code></td></tr>
+<tr><td><strong>Broken tax</strong></td><td><code>Add to Cart</code></td></tr>
+<tr><td><strong>Renamed control + broken tax</strong></td><td><code>Add to Bag</code></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</main>
+</body>
+</html>

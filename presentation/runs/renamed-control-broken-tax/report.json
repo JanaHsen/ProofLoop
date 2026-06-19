@@ -1,0 +1,428 @@
+{
+  "reportSchemaVersion": "1.0",
+  "source": {
+    "runId": "add-to-cart-2026-06-19T11-23-44-691Z-8686ccd2",
+    "evaluationId": "eval-001",
+    "runLogSchemaVersion": "1.1",
+    "evaluationRecordSchemaVersion": "1.0",
+    "flowPlanSchemaVersion": "1.0",
+    "planHash": "sha256:ad29fd82a319402998f7c169321d47e49fcf84d188e0cdb74820d47e049f1352"
+  },
+  "flow": {
+    "id": "add-to-cart",
+    "name": "Add items to the cart and verify the totals",
+    "entry": "/login",
+    "viewport": "desktop",
+    "steps": [
+      {
+        "id": "add-to-cart:S1",
+        "ordinal": 1,
+        "text": "Sign in as \"alice\" with password \"[REDACTED]\"."
+      },
+      {
+        "id": "add-to-cart:S2",
+        "ordinal": 2,
+        "text": "Open the product list."
+      },
+      {
+        "id": "add-to-cart:S3",
+        "ordinal": 3,
+        "text": "Add the \"Desk Lamp\" to the cart twice."
+      },
+      {
+        "id": "add-to-cart:S4",
+        "ordinal": 4,
+        "text": "Add the \"Coffee Mug\" to the cart once."
+      },
+      {
+        "id": "add-to-cart:S5",
+        "ordinal": 5,
+        "text": "Open the cart."
+      }
+    ],
+    "criteria": [
+      {
+        "id": "add-to-cart:C1",
+        "ordinal": 1,
+        "text": "The Subtotal equals the sum of the line totals, where each line total is the item's unit price multiplied by its quantity."
+      },
+      {
+        "id": "add-to-cart:C2",
+        "ordinal": 2,
+        "text": "The Tax equals 10% of the Subtotal, rounded to the nearest cent — it must not be zero or a different proportion."
+      },
+      {
+        "id": "add-to-cart:C3",
+        "ordinal": 3,
+        "text": "The Total equals the Subtotal plus the Tax."
+      }
+    ]
+  },
+  "execution": {
+    "status": "completed",
+    "model": "claude-sonnet-4-6",
+    "actionCount": 10,
+    "errorCount": 0,
+    "retryCount": 0,
+    "inputTokens": 29821,
+    "outputTokens": 1444,
+    "costUsd": 0.11112300000000001,
+    "latencyMs": 44311
+  },
+  "verification": {
+    "flowVerdict": "FAIL",
+    "model": "claude-opus-4-8",
+    "params": {
+      "max_tokens": 2048,
+      "tool_choice": "record_verdict",
+      "disable_parallel_tool_use": true,
+      "sampling": "none",
+      "thinking": "off"
+    },
+    "inputTokens": 22480,
+    "outputTokens": 1026,
+    "costUsd": 0.13805,
+    "latencyMs": 17741,
+    "criteria": [
+      {
+        "criterionId": "add-to-cart:C1",
+        "ordinal": 1,
+        "text": "The Subtotal equals the sum of the line totals, where each line total is the item's unit price multiplied by its quantity.",
+        "verdict": "PASS",
+        "reasoning": "In the terminal cart snapshot, Desk Lamp: $24.99 × 2 = $49.98 (matches displayed line total). Coffee Mug: $8.99 × 1 = $8.99 (matches). Sum of line totals = $49.98 + $8.99 = $58.97, which equals the displayed Subtotal of $58.97. The criterion's stated outcome holds.",
+        "observations": [
+          {
+            "label": "Desk Lamp line",
+            "observedText": "Desk Lamp $24.99 2 $49.98",
+            "snapshotId": "snapshot-021",
+            "ref": "e22"
+          },
+          {
+            "label": "Coffee Mug line",
+            "observedText": "Coffee Mug $8.99 1 $8.99",
+            "snapshotId": "snapshot-021",
+            "ref": "e27"
+          },
+          {
+            "label": "Subtotal",
+            "observedText": "Subtotal $58.97",
+            "snapshotId": "snapshot-021",
+            "ref": "e33"
+          }
+        ],
+        "citationValidations": [
+          {
+            "snapshotProvided": true,
+            "digestMatches": true,
+            "refPresent": true,
+            "observedTextPresent": true,
+            "valid": true
+          },
+          {
+            "snapshotProvided": true,
+            "digestMatches": true,
+            "refPresent": true,
+            "observedTextPresent": true,
+            "valid": true
+          },
+          {
+            "snapshotProvided": true,
+            "digestMatches": true,
+            "refPresent": true,
+            "observedTextPresent": true,
+            "valid": true
+          }
+        ],
+        "evidence": {
+          "snapshotIds": [
+            "snapshot-021",
+            "snapshot-005",
+            "snapshot-008",
+            "snapshot-012",
+            "snapshot-017",
+            "snapshot-020"
+          ]
+        }
+      },
+      {
+        "criterionId": "add-to-cart:C2",
+        "ordinal": 2,
+        "text": "The Tax equals 10% of the Subtotal, rounded to the nearest cent — it must not be zero or a different proportion.",
+        "verdict": "FAIL",
+        "reasoning": "The criterion requires Tax to equal 10% of the Subtotal, rounded to the nearest cent, and explicitly states it must not be zero. In the terminal cart snapshot, the Subtotal is $58.97, so the expected Tax is $5.90 (10% of 58.97 = 5.897 ≈ $5.90). However, the displayed Tax is $0.00, which is zero and not the expected proportion. This directly contradicts the criterion.",
+        "observations": [
+          {
+            "label": "Subtotal",
+            "observedText": "$58.97",
+            "snapshotId": "snapshot-021",
+            "ref": "e35"
+          },
+          {
+            "label": "Tax",
+            "observedText": "$0.00",
+            "snapshotId": "snapshot-021",
+            "ref": "e38"
+          }
+        ],
+        "citationValidations": [
+          {
+            "snapshotProvided": true,
+            "digestMatches": true,
+            "refPresent": true,
+            "observedTextPresent": true,
+            "valid": true
+          },
+          {
+            "snapshotProvided": true,
+            "digestMatches": true,
+            "refPresent": true,
+            "observedTextPresent": true,
+            "valid": true
+          }
+        ],
+        "evidence": {
+          "snapshotIds": [
+            "snapshot-021",
+            "snapshot-005",
+            "snapshot-008",
+            "snapshot-012",
+            "snapshot-017",
+            "snapshot-020"
+          ]
+        }
+      },
+      {
+        "criterionId": "add-to-cart:C3",
+        "ordinal": 3,
+        "text": "The Total equals the Subtotal plus the Tax.",
+        "verdict": "PASS",
+        "reasoning": "In the terminal cart snapshot, Subtotal is $58.97 and Tax is $0.00. Subtotal + Tax = $58.97 + $0.00 = $58.97, which equals the displayed Total of $58.97. The criterion holds.",
+        "observations": [
+          {
+            "label": "Subtotal",
+            "observedText": "$58.97",
+            "snapshotId": "snapshot-021",
+            "ref": "e35"
+          },
+          {
+            "label": "Tax",
+            "observedText": "$0.00",
+            "snapshotId": "snapshot-021",
+            "ref": "e38"
+          },
+          {
+            "label": "Total",
+            "observedText": "$58.97",
+            "snapshotId": "snapshot-021",
+            "ref": "e43"
+          }
+        ],
+        "citationValidations": [
+          {
+            "snapshotProvided": true,
+            "digestMatches": true,
+            "refPresent": true,
+            "observedTextPresent": true,
+            "valid": true
+          },
+          {
+            "snapshotProvided": true,
+            "digestMatches": true,
+            "refPresent": true,
+            "observedTextPresent": true,
+            "valid": true
+          },
+          {
+            "snapshotProvided": true,
+            "digestMatches": true,
+            "refPresent": true,
+            "observedTextPresent": true,
+            "valid": true
+          }
+        ],
+        "evidence": {
+          "snapshotIds": [
+            "snapshot-021",
+            "snapshot-005",
+            "snapshot-008",
+            "snapshot-012",
+            "snapshot-017",
+            "snapshot-020"
+          ]
+        }
+      }
+    ]
+  },
+  "timeline": [
+    {
+      "seq": 2,
+      "type": "step_start",
+      "stepId": "add-to-cart:S1",
+      "stepText": "Sign in as \"alice\" with password \"[REDACTED]\".",
+      "ordinal": 1
+    },
+    {
+      "seq": 5,
+      "type": "action",
+      "action": "type",
+      "ref": "e13",
+      "status": "executed",
+      "stepId": "add-to-cart:S1",
+      "stepText": "Sign in as \"alice\" with password \"[REDACTED]\".",
+      "pageUrl": "http://localhost:3000/login"
+    },
+    {
+      "seq": 8,
+      "type": "action",
+      "action": "type",
+      "ref": "e15",
+      "status": "executed",
+      "stepId": "add-to-cart:S1",
+      "stepText": "Sign in as \"alice\" with password \"[REDACTED]\".",
+      "pageUrl": "http://localhost:3000/login"
+    },
+    {
+      "seq": 11,
+      "type": "action",
+      "action": "click",
+      "ref": "e16",
+      "status": "executed",
+      "stepId": "add-to-cart:S1",
+      "stepText": "Sign in as \"alice\" with password \"[REDACTED]\".",
+      "pageUrl": "http://localhost:3000/login"
+    },
+    {
+      "seq": 15,
+      "type": "step_end",
+      "stepId": "add-to-cart:S1",
+      "stepText": "Sign in as \"alice\" with password \"[REDACTED]\"."
+    },
+    {
+      "seq": 16,
+      "type": "step_start",
+      "stepId": "add-to-cart:S2",
+      "stepText": "Open the product list.",
+      "ordinal": 2
+    },
+    {
+      "seq": 19,
+      "type": "action",
+      "action": "click",
+      "ref": "e5",
+      "status": "executed",
+      "stepId": "add-to-cart:S2",
+      "stepText": "Open the product list.",
+      "pageUrl": "http://localhost:3000/"
+    },
+    {
+      "seq": 23,
+      "type": "step_end",
+      "stepId": "add-to-cart:S2",
+      "stepText": "Open the product list."
+    },
+    {
+      "seq": 24,
+      "type": "step_start",
+      "stepId": "add-to-cart:S3",
+      "stepText": "Add the \"Desk Lamp\" to the cart twice.",
+      "ordinal": 3
+    },
+    {
+      "seq": 27,
+      "type": "action",
+      "action": "type",
+      "ref": "e34",
+      "status": "executed",
+      "stepId": "add-to-cart:S3",
+      "stepText": "Add the \"Desk Lamp\" to the cart twice.",
+      "pageUrl": "http://localhost:3000/products"
+    },
+    {
+      "seq": 30,
+      "type": "action",
+      "action": "click",
+      "ref": "e35",
+      "status": "executed",
+      "stepId": "add-to-cart:S3",
+      "stepText": "Add the \"Desk Lamp\" to the cart twice.",
+      "pageUrl": "http://localhost:3000/products"
+    },
+    {
+      "seq": 34,
+      "type": "step_end",
+      "stepId": "add-to-cart:S3",
+      "stepText": "Add the \"Desk Lamp\" to the cart twice."
+    },
+    {
+      "seq": 35,
+      "type": "step_start",
+      "stepId": "add-to-cart:S4",
+      "stepText": "Add the \"Coffee Mug\" to the cart once.",
+      "ordinal": 4
+    },
+    {
+      "seq": 38,
+      "type": "action",
+      "action": "click",
+      "ref": "e5",
+      "status": "executed",
+      "stepId": "add-to-cart:S4",
+      "stepText": "Add the \"Coffee Mug\" to the cart once.",
+      "pageUrl": "http://localhost:3000/cart"
+    },
+    {
+      "seq": 41,
+      "type": "action",
+      "action": "click",
+      "ref": "e42",
+      "status": "executed",
+      "stepId": "add-to-cart:S4",
+      "stepText": "Add the \"Coffee Mug\" to the cart once.",
+      "pageUrl": "http://localhost:3000/products"
+    },
+    {
+      "seq": 44,
+      "type": "action",
+      "action": "click",
+      "ref": "e5",
+      "status": "executed",
+      "stepId": "add-to-cart:S4",
+      "stepText": "Add the \"Coffee Mug\" to the cart once.",
+      "pageUrl": "http://localhost:3000/cart"
+    },
+    {
+      "seq": 48,
+      "type": "step_end",
+      "stepId": "add-to-cart:S4",
+      "stepText": "Add the \"Coffee Mug\" to the cart once."
+    },
+    {
+      "seq": 49,
+      "type": "step_start",
+      "stepId": "add-to-cart:S5",
+      "stepText": "Open the cart.",
+      "ordinal": 5
+    },
+    {
+      "seq": 52,
+      "type": "action",
+      "action": "click",
+      "ref": "e6",
+      "status": "executed",
+      "stepId": "add-to-cart:S5",
+      "stepText": "Open the cart.",
+      "pageUrl": "http://localhost:3000/products"
+    },
+    {
+      "seq": 56,
+      "type": "step_end",
+      "stepId": "add-to-cart:S5",
+      "stepText": "Open the cart."
+    },
+    {
+      "seq": 58,
+      "type": "flow_end",
+      "executionStatus": "completed"
+    }
+  ]
+}

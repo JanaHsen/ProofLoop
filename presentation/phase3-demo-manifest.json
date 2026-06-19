@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "title": "Phase 3 regression demonstration",
+  "runs": [
+    {
+      "label": "Clean",
+      "runId": "add-to-cart-2026-06-18T21-34-32-463Z-d1908fac",
+      "evaluationId": "eval-001"
+    },
+    {
+      "label": "Renamed control",
+      "runId": "add-to-cart-2026-06-19T11-17-07-018Z-51cd9564",
+      "evaluationId": "eval-001"
+    },
+    {
+      "label": "Broken tax",
+      "runId": "add-to-cart-2026-06-19T11-21-55-992Z-57f2c78f",
+      "evaluationId": "eval-001"
+    },
+    {
+      "label": "Renamed control + broken tax",
+      "runId": "add-to-cart-2026-06-19T11-23-44-691Z-8686ccd2",
+      "evaluationId": "eval-001"
+    }
+  ]
+}

@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProofLoop report — Add items to the cart and verify the totals</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 2rem; color: #2b2226; background: #f7efe3; line-height: 1.5; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; color: #6e1f2a; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .75rem; border-bottom: 2px solid #e2cdbf; padding-bottom: .3rem; color: #6e1f2a; }
+  h3 { font-size: 1rem; margin: 1.25rem 0 .4rem; color: #6e1f2a; }
+  code { font-family: SFMono-Regular, Consolas, Menlo, monospace; font-size: .85em;
+    background: #f1e4d6; padding: .05rem .3rem; border-radius: 3px; }
+  .card { background: #fffdf8; border: 1px solid #e2cdbf; border-radius: 8px; padding: 1rem 1.25rem; margin: 0 0 1rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1rem; }
+  .kv dt { color: #6b5a52; }
+  .kv dd { margin: 0; font-weight: 600; }
+  .badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .8rem;
+    font-weight: 700; letter-spacing: .03em; vertical-align: middle; }
+  .verdict-pass { background: #e6f4ea; color: #1a7f37; border: 1px solid #acd8b8; }
+  .verdict-fail { background: #fce8e6; color: #cf222e; border: 1px solid #f1b0aa; }
+  .verdict-inconclusive { background: #fff4e5; color: #9a6700; border: 1px solid #f0cd8a; }
+  .badge-neutral { background: #efe1d0; color: #5b4636; border: 1px solid #d8c0a6; }
+  .hero { border-left: 5px solid #6e1f2a; }
+  .hero-items { display: flex; gap: 2rem; flex-wrap: wrap; }
+  .hero-item .label { font-size: .8rem; color: #6b5a52; text-transform: uppercase; letter-spacing: .04em; }
+  .hero-item .value { font-size: 1.25rem; font-weight: 700; margin-top: .2rem; }
+  .hero-note { margin: .75rem 0 0; }
+  details.tech { background: #fffdf8; border: 1px solid #e2cdbf; border-radius: 8px; padding: .5rem 1rem; margin: 0 0 1rem; }
+  details.tech summary { cursor: pointer; color: #6e1f2a; font-weight: 600; }
+  details.tech[open] summary { margin-bottom: .5rem; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { border: 1px solid #e2cdbf; padding: .35rem .5rem; text-align: left; vertical-align: top; }
+  th { background: #f3e7d9; font-weight: 600; color: #6e1f2a; }
+  .check-ok { color: #1a7f37; font-weight: 700; }
+  .check-bad { color: #cf222e; font-weight: 700; }
+  .failed-checks { margin: .25rem 0 0; padding-left: 1.1rem; font-size: .78rem; color: #cf222e; }
+  tr.citation-invalid { background: #fbeef0; }
+  .muted { color: #6b5a52; }
+  .normalized, .reason, .detail { font-size: .78rem; color: #6b5a52; margin-top: .2rem; }
+  .detail.failure { color: #cf222e; }
+  .reasoning, .criterion-text { margin: .3rem 0; }
+  .criterion { padding: .25rem 0; }
+  .criterion + .criterion { border-top: 1px solid #eaddcc; margin-top: .5rem; padding-top: .75rem; }
+  .criterion-fail { border-left: 4px solid #cf222e; background: #fdf3f3; border-radius: 6px;
+    padding: .25rem .75rem .5rem; margin-top: .75rem; }
+  .criterion-title { font-size: 1.05rem; }
+  code.cid { font-size: .72rem; color: #6b5a52; background: transparent; }
+  .inconclusive-detail { background: #fbeede; border: 1px solid #dcae8f; padding: .4rem .6rem; border-radius: 6px; }
+  ol.steps li, ul.criteria li { margin: .25rem 0; }
+  code.break { overflow-wrap: anywhere; word-break: break-all; }
+  footer { color: #6b5a52; font-size: .8rem; margin-top: 2rem; }
+  @media (max-width: 700px) {
+    body { padding: 1rem; }
+    .grid { grid-template-columns: 1fr; }
+    .hero-items { gap: 1rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Add items to the cart and verify the totals</h1>
+  
+
+  <div class="card hero">
+    <div class="hero-items">
+      <div class="hero-item">
+        <div class="label">Execution status</div>
+        <div class="value"><span class="badge badge-neutral">completed</span></div>
+      </div>
+      <div class="hero-item">
+        <div class="label">Flow verdict</div>
+        <div class="value"><span class="badge verdict-pass">PASS</span></div>
+      </div>
+    </div>
+    <p class="muted hero-note">Execution completion and verification correctness are independent:
+    a run can finish successfully and still fail verification.</p>
+  </div>
+
+  <details class="tech">
+    <summary>Technical run details</summary>
+    <dl class="kv">
+      <dt>Run id</dt><dd><code class="break">add-to-cart-2026-06-19T11-17-07-018Z-51cd9564</code></dd>
+      <dt>Evaluation id</dt><dd><code>eval-001</code></dd>
+      <dt>Plan hash</dt><dd><code class="break">sha256:ad29fd82a319402998f7c169321d47e49fcf84d188e0cdb74820d47e049f1352</code></dd>
+      <dt>Schema versions</dt><dd>report 1.0 ·
+        run 1.1 ·
+        evaluation 1.0 ·
+        flow 1.0</dd>
+      <dt>Entry</dt><dd><code>/login</code></dd>
+      <dt>Viewport</dt><dd>desktop</dd>
+      <dt>Flow id</dt><dd><code>add-to-cart</code></dd>
+    </dl>
+  </details>
+
+  <h2>Flow steps</h2>
+  <div class="card"><ol class="steps">
+<li><code>add-to-cart:S1</code> Sign in as &quot;alice&quot; with password &quot;[REDACTED]&quot;.</li>
+<li><code>add-to-cart:S2</code> Open the product list.</li>
+<li><code>add-to-cart:S3</code> Add the &quot;Desk Lamp&quot; to the cart twice.</li>
+<li><code>add-to-cart:S4</code> Add the &quot;Coffee Mug&quot; to the cart once.</li>
+<li><code>add-to-cart:S5</code> Open the cart.</li>
+  </ol></div>
+
+  <h2>Acceptance criteria</h2>
+  <div class="card"><ul class="criteria">
+<li><code>add-to-cart:C1</code> The Subtotal equals the sum of the line totals, where each line total is the item&#39;s unit price multiplied by its quantity.</li>
+<li><code>add-to-cart:C2</code> The Tax equals 10% of the Subtotal, rounded to the nearest cent — it must not be zero or a different proportion.</li>
+<li><code>add-to-cart:C3</code> The Total equals the Subtotal plus the Tax.</li>
+  </ul></div>
+
+  <h2>Verification — per criterion</h2>
+  <div class="card">
+<section class="criterion">
+  <h3><span class="criterion-title">Line totals</span>
+    <code class="cid">add-to-cart:C1</code> <span class="badge verdict-pass">PASS</span></h3>
+  <p class="criterion-text">The Subtotal equals the sum of the line totals, where each line total is the item&#39;s unit price multiplied by its quantity.</p>
+  
+  <p class="reasoning"><strong>Verifier reasoning:</strong> Line total for Desk Lamp = 24.99 × 2 = 49.98 (matches displayed $49.98). Line total for Coffee Mug = 8.99 × 1 = 8.99 (matches displayed $8.99). Sum of line totals = 49.98 + 8.99 = 58.97, which exactly equals the displayed Subtotal of $58.97. The criterion holds.</p>
+  <div class="table-wrap">
+  <table class="evidence">
+    <thead>
+      <tr><th>Evidence label</th><th>Observed value / text</th><th>Snapshot · ref</th><th>Citation status</th></tr>
+    </thead>
+    <tbody>
+<tr>
+  <td>Desk Lamp unit price</td>
+  <td><code>$24.99</code></td>
+  <td><code>snapshot-019</code> · <code>e24</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Desk Lamp qty</td>
+  <td><code>2</code></td>
+  <td><code>snapshot-019</code> · <code>e25</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Desk Lamp line total</td>
+  <td><code>$49.98</code></td>
+  <td><code>snapshot-019</code> · <code>e26</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Coffee Mug unit price</td>
+  <td><code>$8.99</code></td>
+  <td><code>snapshot-019</code> · <code>e29</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Coffee Mug qty</td>
+  <td><code>1</code></td>
+  <td><code>snapshot-019</code> · <code>e30</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Coffee Mug line total</td>
+  <td><code>$8.99</code></td>
+  <td><code>snapshot-019</code> · <code>e31</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Subtotal</td>
+  <td><code>$58.97</code></td>
+  <td><code>snapshot-019</code> · <code>e35</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section class="criterion">
+  <h3><span class="criterion-title">Proportional tax</span>
+    <code class="cid">add-to-cart:C2</code> <span class="badge verdict-pass">PASS</span></h3>
+  <p class="criterion-text">The Tax equals 10% of the Subtotal, rounded to the nearest cent — it must not be zero or a different proportion.</p>
+  
+  <p class="reasoning"><strong>Verifier reasoning:</strong> In the terminal cart snapshot, the Subtotal is $58.97 and the Tax is $5.90. 10% of 58.97 = 5.897, which rounds to the nearest cent as $5.90. This matches the displayed Tax exactly, it is non-zero, and it is the correct 10% proportion. The criterion is satisfied.</p>
+  <div class="table-wrap">
+  <table class="evidence">
+    <thead>
+      <tr><th>Evidence label</th><th>Observed value / text</th><th>Snapshot · ref</th><th>Citation status</th></tr>
+    </thead>
+    <tbody>
+<tr>
+  <td>Subtotal (final cart)</td>
+  <td><code>$58.97</code></td>
+  <td><code>snapshot-019</code> · <code>e35</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Tax (final cart)</td>
+  <td><code>$5.90</code></td>
+  <td><code>snapshot-019</code> · <code>e38</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section class="criterion">
+  <h3><span class="criterion-title">Total reconciliation</span>
+    <code class="cid">add-to-cart:C3</code> <span class="badge verdict-pass">PASS</span></h3>
+  <p class="criterion-text">The Total equals the Subtotal plus the Tax.</p>
+  
+  <p class="reasoning"><strong>Verifier reasoning:</strong> In the terminal Cart snapshot, Subtotal is $58.97 and Tax is $5.90. 58.97 + 5.90 = 64.87, which matches the displayed Total of $64.87. The criterion holds.</p>
+  <div class="table-wrap">
+  <table class="evidence">
+    <thead>
+      <tr><th>Evidence label</th><th>Observed value / text</th><th>Snapshot · ref</th><th>Citation status</th></tr>
+    </thead>
+    <tbody>
+<tr>
+  <td>Subtotal</td>
+  <td><code>$58.97</code></td>
+  <td><code>snapshot-019</code> · <code>e35</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Tax</td>
+  <td><code>$5.90</code></td>
+  <td><code>snapshot-019</code> · <code>e38</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+<tr>
+  <td>Total</td>
+  <td><code>$64.87</code></td>
+  <td><code>snapshot-019</code> · <code>e43</code></td>
+  <td><span class="check-ok">✓ Validated</span></td>
+</tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+  </div>
+
+  <h2>Metrics</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Executor / decider</h3>
+      <dl class="kv">
+        <dt>Execution status</dt><dd>completed</dd>
+        <dt>Decider model</dt><dd><code>claude-sonnet-4-6</code></dd>
+        <dt>Actions</dt><dd>8</dd>
+        <dt>Errors</dt><dd>0</dd>
+        <dt>Retries</dt><dd>0</dd>
+        <dt>Input tokens</dt><dd>25613</dd>
+        <dt>Output tokens</dt><dd>1318</dd>
+        <dt>Cost</dt><dd>$0.0966</dd>
+        <dt>Latency</dt><dd>125371 ms</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h3>Verifier</h3>
+      <dl class="kv">
+        <dt>Flow verdict</dt><dd><span class="badge verdict-pass">PASS</span></dd>
+        <dt>Verifier model</dt><dd><code>claude-opus-4-8</code></dd>
+        <dt>Evaluation id</dt><dd><code>eval-001</code></dd>
+        <dt>Input tokens</dt><dd>22345</dd>
+        <dt>Output tokens</dt><dd>1118</dd>
+        <dt>Cost</dt><dd>$0.1397</dd>
+        <dt>Latency</dt><dd>14043 ms</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h2>Timeline</h2>
+  <div class="card">
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Step</th><th>Actions performed</th><th>Status</th></tr></thead>
+      <tbody>
+<tr><td>1. Sign in as &quot;alice&quot; with password &quot;[REDACTED]&quot;.</td><td><code>type e13 (executed)</code><br><code>type e15 (executed)</code><br><code>click e16 (executed)</code></td><td><span class="badge badge-neutral">completed</span></td></tr>
+<tr><td>2. Open the product list.</td><td><code>click e5 (executed)</code></td><td><span class="badge badge-neutral">completed</span></td></tr>
+<tr><td>3. Add the &quot;Desk Lamp&quot; to the cart twice.</td><td><code>type e34 (executed)</code><br><code>click e35 (executed)</code></td><td><span class="badge badge-neutral">completed</span></td></tr>
+<tr><td>4. Add the &quot;Coffee Mug&quot; to the cart once.</td><td><code>click e5 (executed)</code><br><code>click e42 (executed)</code></td><td><span class="badge badge-neutral">completed</span></td></tr>
+<tr><td>5. Open the cart.</td><td><span class="muted">— (navigation / no element action)</span></td><td><span class="badge badge-neutral">completed</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <details class="tech">
+      <summary>Full execution audit trail</summary>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Seq</th><th>Type</th><th>Step</th><th>Step text</th><th>Detail</th></tr></thead>
+        <tbody>
+<tr>
+  <td>2</td>
+  <td><code>step_start</code></td>
+  <td><code>add-to-cart:S1</code></td>
+  <td>Sign in as &quot;alice&quot; with password &quot;[REDACTED]&quot;.</td>
+  <td><code>ordinal=1</code></td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>action</code></td>
+  <td><code>add-to-cart:S1</code></td>
+  <td>Sign in as &quot;alice&quot; with password &quot;[REDACTED]&quot;.</td>
+  <td><code>action=type</code> <code>ref=e13</code> <code>status=executed</code> <code>url=http://localhost:3000/login</code></td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>action</code></td>
+  <td><code>add-to-cart:S1</code></td>
+  <td>Sign in as &quot;alice&quot; with password &quot;[REDACTED]&quot;.</td>
+  <td><code>action=type</code> <code>ref=e15</code> <code>status=executed</code> <code>url=http://localhost:3000/login</code></td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>action</code></td>
+  <td><code>add-to-cart:S1</code></td>
+  <td>Sign in as &quot;alice&quot; with password &quot;[REDACTED]&quot;.</td>
+  <td><code>action=click</code> <code>ref=e16</code> <code>status=executed</code> <code>url=http://localhost:3000/login</code></td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>step_end</code></td>
+  <td><code>add-to-cart:S1</code></td>
+  <td>Sign in as &quot;alice&quot; with password &quot;[REDACTED]&quot;.</td>
+  <td></td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>step_start</code></td>
+  <td><code>add-to-cart:S2</code></td>
+  <td>Open the product list.</td>
+  <td><code>ordinal=2</code></td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>action</code></td>
+  <td><code>add-to-cart:S2</code></td>
+  <td>Open the product list.</td>
+  <td><code>action=click</code> <code>ref=e5</code> <code>status=executed</code> <code>url=http://localhost:3000/</code></td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>step_end</code></td>
+  <td><code>add-to-cart:S2</code></td>
+  <td>Open the product list.</td>
+  <td></td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>step_start</code></td>
+  <td><code>add-to-cart:S3</code></td>
+  <td>Add the &quot;Desk Lamp&quot; to the cart twice.</td>
+  <td><code>ordinal=3</code></td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>action</code></td>
+  <td><code>add-to-cart:S3</code></td>
+  <td>Add the &quot;Desk Lamp&quot; to the cart twice.</td>
+  <td><code>action=type</code> <code>ref=e34</code> <code>status=executed</code> <code>url=http://localhost:3000/products</code></td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>action</code></td>
+  <td><code>add-to-cart:S3</code></td>
+  <td>Add the &quot;Desk Lamp&quot; to the cart twice.</td>
+  <td><code>action=click</code> <code>ref=e35</code> <code>status=executed</code> <code>url=http://localhost:3000/products</code></td>
+</tr>
+<tr>
+  <td>34</td>
+  <td><code>step_end</code></td>
+  <td><code>add-to-cart:S3</code></td>
+  <td>Add the &quot;Desk Lamp&quot; to the cart twice.</td>
+  <td></td>
+</tr>
+<tr>
+  <td>35</td>
+  <td><code>step_start</code></td>
+  <td><code>add-to-cart:S4</code></td>
+  <td>Add the &quot;Coffee Mug&quot; to the cart once.</td>
+  <td><code>ordinal=4</code></td>
+</tr>
+<tr>
+  <td>38</td>
+  <td><code>action</code></td>
+  <td><code>add-to-cart:S4</code></td>
+  <td>Add the &quot;Coffee Mug&quot; to the cart once.</td>
+  <td><code>action=click</code> <code>ref=e5</code> <code>status=executed</code> <code>url=http://localhost:3000/cart</code></td>
+</tr>
+<tr>
+  <td>41</td>
+  <td><code>action</code></td>
+  <td><code>add-to-cart:S4</code></td>
+  <td>Add the &quot;Coffee Mug&quot; to the cart once.</td>
+  <td><code>action=click</code> <code>ref=e42</code> <code>status=executed</code> <code>url=http://localhost:3000/products</code></td>
+</tr>
+<tr>
+  <td>45</td>
+  <td><code>step_end</code></td>
+  <td><code>add-to-cart:S4</code></td>
+  <td>Add the &quot;Coffee Mug&quot; to the cart once.</td>
+  <td></td>
+</tr>
+<tr>
+  <td>46</td>
+  <td><code>step_start</code></td>
+  <td><code>add-to-cart:S5</code></td>
+  <td>Open the cart.</td>
+  <td><code>ordinal=5</code></td>
+</tr>
+<tr>
+  <td>50</td>
+  <td><code>step_end</code></td>
+  <td><code>add-to-cart:S5</code></td>
+  <td>Open the cart.</td>
+  <td></td>
+</tr>
+<tr>
+  <td>52</td>
+  <td><code>flow_end</code></td>
+  <td><span class="muted">—</span></td>
+  <td><span class="muted">—</span></td>
+  <td><code>executionStatus=completed</code></td>
+</tr>
+        </tbody>
+      </table>
+      </div>
+    </details>
+  </div>
+
+  
+
+  <footer>Generated by ProofLoop from frozen run + evaluation artifacts. Evidence is citation-based;
+  no screenshots, traces, or videos exist for these runs. This report re-states recorded verdicts and
+  does not re-run the verifier.</footer>
+</main>
+</body>
+</html>
