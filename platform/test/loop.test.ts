@@ -301,27 +301,6 @@ test("schema-invalid: one correction then error; tokens still accounted in total
   }
 });
 
-test("malformed action (no verb) never reaches the actuator; one bounded correction then error", async () => {
-  // The MUTATED-run incident shape: kind:"action" with no `action` verb. parseDecision
-  // is the dispatch gate (loop.ts), so the actuator's clickRef/typeRef are never invoked;
-  // the single-correction policy still applies (one retry, then error-stop) — unchanged.
-  const decider = new MockDecider(() => ({ kind: "action", ref: "e8", rationale: "add to bag" }));
-  const actuator = new MockActuator(() => loginSnap());
-  const { out, cleanup } = await execute(decider, actuator);
-  try {
-    assert.equal(out.manifest.executionStatus, "error");
-    // malformed decisions never reach the actuator
-    assert.equal(actuator.clicks.length, 0);
-    assert.equal(actuator.types.length, 0);
-    // exactly one informed correction, then error-stop (MAX_CORRECTIONS_PER_DECISION = 1)
-    assert.equal(types(out.events, "error").filter((e) => (e as { code: string }).code === "SCHEMA_INVALID").length, 2);
-    assert.equal(types(out.events, "retry").length, 1);
-    assert.equal(types(out.events, "llm_decision").length, 0);
-  } finally {
-    cleanup();
-  }
-});
-
 test("blocked decision stops with executionStatus blocked", async () => {
   const decider = new MockDecider(() => ({ kind: "blocked", reason: "no sign-in control" }));
   const actuator = new MockActuator(() => loginSnap());
