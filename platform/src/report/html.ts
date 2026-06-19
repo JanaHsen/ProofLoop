@@ -38,7 +38,8 @@ const VERDICT_CLASS: Record<string, string> = {
   INCONCLUSIVE: "verdict-inconclusive",
 };
 
-function verdictBadge(verdict: string): string {
+/** A coloured verdict pill. Relies on the `.verdict-*` CSS classes (present in both page styles). */
+export function verdictBadge(verdict: string): string {
   const cls = VERDICT_CLASS[verdict] ?? "verdict-inconclusive";
   return `<span class="badge ${cls}">${escapeHtml(verdict)}</span>`;
 }

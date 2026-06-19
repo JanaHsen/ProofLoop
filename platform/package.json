@@ -9,7 +9,8 @@
     "parse": "ts-node --transpile-only src/cli.ts",
     "run": "node --env-file-if-exists=../.env --require ts-node/register/transpile-only src/run-cli.ts",
     "verify": "node --env-file-if-exists=../.env --require ts-node/register/transpile-only src/verify-cli.ts",
-    "report": "node --require ts-node/register/transpile-only src/report-cli.ts"
+    "report": "node --require ts-node/register/transpile-only src/report-cli.ts",
+    "report:compare": "node --require ts-node/register/transpile-only src/report-compare-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.104.2",

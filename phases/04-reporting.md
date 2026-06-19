@@ -564,7 +564,7 @@ Do not silently default to an expensive model.
 
 ### Task 3 — Four-state comparison page
 
-* [ ] Add a tracked presentation manifest, for example:
+* [x] Add a tracked presentation manifest, for example:
 
 ```text
 presentation/phase3-demo-manifest.json
@@ -601,20 +601,20 @@ with its own small version field:
 }
 ```
 
-* [ ] The manifest must not contain:
+* [x] The manifest must not contain:
 
   * expected verdicts;
   * bug-ledger data;
   * verifier instructions;
   * anything consumed by the execution or evaluation pipeline.
-* [ ] Build the comparison only from the four selected generated reports.
-* [ ] Add a comparison CLI such as:
+* [x] Build the comparison only from the four selected generated reports.
+* [x] Add a comparison CLI such as:
 
 ```bash
 npm run report:compare -- --manifest ../presentation/phase3-demo-manifest.json
 ```
 
-* [ ] Generate one self-contained comparison page showing:
+* [x] Generate one self-contained comparison page showing:
 
   * display label;
   * run ID and evaluation ID;
@@ -624,20 +624,20 @@ npm run report:compare -- --manifest ../presentation/phase3-demo-manifest.json
   * decider cost;
   * verifier cost;
   * links or relative references to the committed per-run HTML reports.
-* [ ] Emphasize that all four executions completed while only the behaviorally buggy states
+* [x] Emphasize that all four executions completed while only the behaviorally buggy states
   failed verification.
-* [ ] Include the catcher-criterion contrast when time permits:
+* [x] Include the catcher-criterion contrast when time permits:
 
   * correct Tax evidence → PASS;
   * `$0.00` Tax evidence → FAIL.
-* [ ] Embed this visible caveat inside the page:
+* [x] Embed this visible caveat inside the page:
 
 > This is a focused Phase 3 regression demonstration. It shows that ProofLoop adapted to
 > one harmless structural change while still detecting one targeted behavioral regression.
 > It is not a platform-wide accuracy result across the complete bug ledger. Broader accuracy,
 > false-pass/false-fail measurement, and reliability evaluation belong to Phases 7–8.
 
-* [ ] Label the section exactly:
+* [x] Label the section exactly:
 
 ```text
 Phase 3 regression demonstration
@@ -645,8 +645,14 @@ Phase 3 regression demonstration
 
 Never label it “accuracy results.”
 
-* [ ] Escape every manifest-derived and report-derived string.
-* [ ] Use inline CSS only; no scripts or external resources.
+* [x] Escape every manifest-derived and report-derived string.
+* [x] Use inline CSS only; no scripts or external resources.
+
+> **Generator committed; presentation artifacts deferred.** The comparison generator
+> (manifest schema/loader, builder, renderer, CLI, tests + test fixture) is committed as the
+> platform source below. The *tracked* presentation manifest, `comparison.html`, and the
+> copied per-run reports under `presentation/runs/` are produced for the Task 4 rendered-output
+> human gate and are NOT committed before that review.
 
 ✅ **COMMIT:** `feat(platform): four-state Phase 3 regression comparison page`
 
