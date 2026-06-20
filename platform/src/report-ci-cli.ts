@@ -23,22 +23,32 @@ import {
 export interface ParsedReportCiArgs {
   resultsPath: string;
   outDir: string;
+  /** Optional explicit repository root for resolving repo-root-relative reportPaths.
+   *  CI passes `$GITHUB_WORKSPACE`; absent => the library default (derived from __dirname). */
+  repoRoot?: string;
 }
 
-/** Parse `--results <path> --out-dir <dir>` (both required, order-independent). Pure/testable. */
+/**
+ * Parse `--results <path> --out-dir <dir> [--repo-root <dir>]` (results+out-dir required,
+ * order-independent). Pure/testable. `--repo-root` lets CI pin the repository root explicitly
+ * (`$GITHUB_WORKSPACE`) so a ledger's repo-root-relative reportPaths resolve on the runner
+ * regardless of where the process was launched.
+ */
 export function parseReportCiArgs(args: readonly string[]): ParsedReportCiArgs | null {
   let resultsPath: string | undefined;
   let outDir: string | undefined;
+  let repoRoot: string | undefined;
   for (let i = 0; i < args.length; i += 2) {
     const flag = args[i];
     const value = args[i + 1];
     if (value === undefined) return null;
     if (flag === "--results") resultsPath = value;
     else if (flag === "--out-dir") outDir = value;
+    else if (flag === "--repo-root") repoRoot = value;
     else return null;
   }
   if (!resultsPath || !outDir) return null;
-  return { resultsPath, outDir };
+  return repoRoot !== undefined ? { resultsPath, outDir, repoRoot } : { resultsPath, outDir };
 }
 
 export interface ReportCiCliDeps {
@@ -65,7 +75,7 @@ export function reportCiCli(argv: readonly string[], deps: Partial<ReportCiCliDe
   const parsed = parseReportCiArgs(Array.from(argv).slice(2));
   if (!parsed) {
     d.err.write(
-      "usage: npm run report:ci -- --results <ci-results.json> --out-dir <dir>\n",
+      "usage: npm run report:ci -- --results <ci-results.json> --out-dir <dir> [--repo-root <dir>]\n",
     );
     return 2;
   }
@@ -77,7 +87,10 @@ export function reportCiCli(argv: readonly string[], deps: Partial<ReportCiCliDe
 
   let output: AggregateCiResultsOutput;
   try {
-    output = d.aggregate({ resultsPath: resultsAbsPath });
+    output = d.aggregate({
+      resultsPath: resultsAbsPath,
+      ...(parsed.repoRoot !== undefined ? { repoRoot: path.resolve(parsed.repoRoot) } : {}),
+    });
   } catch (e) {
     if (e instanceof CiResultsError || e instanceof CiReportError) {
       d.err.write(`${(e as Error).message}\n`);

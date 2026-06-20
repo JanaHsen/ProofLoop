@@ -1,0 +1,341 @@
+name: ProofLoop
+
+# Phase 6, Task 4 — workflow_dispatch ONLY. The path-filtered `pull_request` trigger is
+# added in Task 5, AFTER the live-CI human gate. PR-event-only steps (fork guard, sticky
+# comment) are present here but guarded by `github.event_name == 'pull_request'`, so they
+# are inert under dispatch. The privileged PR-target trigger variant is forbidden (D44).
+on:
+  workflow_dispatch:
+    inputs:
+      bugs:
+        description: "SUT bug toggles (comma-separated). SUT boot ONLY; empty = clean app."
+        required: false
+        default: ""
+
+# Minimal permissions (D44). No privileged PR-target trigger, ever.
+permissions:
+  contents: read
+  pull-requests: write
+
+# Cancel a superseded run of the same PR/ref. Cancellation of a stale commit is NOT a retry.
+concurrency:
+  group: proofloop-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Fork guard (D45) ────────────────────────────────────────────────────────────────────
+  # A same-repo PR or a workflow_dispatch is authorized; a fork PR is not (its token is
+  # read-only and secrets are withheld). Under dispatch this always resolves to `true`.
+  authorize:
+    runs-on: ubuntu-latest
+    outputs:
+      authorized: ${{ steps.check.outputs.authorized }}
+    steps:
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ] && \
+             [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "authorized=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "authorized=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # A fork PR gets a clear notice and no spend, no comment attempt (D45). Inert under dispatch.
+  fork-notice:
+    needs: [authorize]
+    if: needs.authorize.outputs.authorized != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notice (fork PR — skipped)
+        run: |
+          {
+            echo "## ProofLoop skipped (fork pull request)"
+            echo ""
+            echo "Secrets are withheld from fork PRs and the token is read-only, so ProofLoop"
+            echo "cannot run or post a comment here. A maintainer must bring this change onto a"
+            echo "trusted branch and trigger the workflow via **workflow_dispatch**."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Main pipeline ───────────────────────────────────────────────────────────────────────
+  proofloop:
+    needs: [authorize]
+    if: needs.authorize.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    # §6 — outer safety boundary for orchestration hangs OUTSIDE ProofLoop's internal guards
+    # (MCP subprocess deadlock, Chromium not terminating, a network call that never returns,
+    # a shell/process-orchestration hang, or a failure that blocks teardown/enforcement).
+    # The internal per-flow guards bound individual executions/spend; this bounds the whole job.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (pinned)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.18.1"
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            platform/package-lock.json
+
+      - name: Configure runtime paths
+        # All CI runtime output lives under $RUNNER_TEMP so the checked-out workspace stays
+        # pristine (only the gitignored platform/runs/** is written inside it). Path vars are
+        # not secrets, so exporting them job-wide is safe.
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci/logs" "$RUNNER_TEMP/ci/out"
+          {
+            echo "PL_LEDGER=$RUNNER_TEMP/ci/ci-results.json"
+            echo "PL_CIOUT=$RUNNER_TEMP/ci/out"
+            echo "PL_SUTLOG=$RUNNER_TEMP/ci/sut.log"
+            echo "PL_LOGDIR=$RUNNER_TEMP/ci/logs"
+          } >> "$GITHUB_ENV"
+
+      - name: Install app dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Install platform dependencies
+        working-directory: platform
+        run: npm ci
+
+      - name: Install Chromium (browser is owned by platform/)
+        working-directory: platform
+        run: npx playwright install --with-deps chromium
+
+      # §7 — Preflight resolves the executor + verifier model IDs through the SAME production
+      # config path the CLIs use and validates the RESOLVED ids through the production pricing
+      # resolver. PROOFLOOP_MODEL is pinned explicitly (audit + drift protection), but preflight
+      # proves the resolved model is priceable — it does not trust the literal. Fails before spend.
+      - name: Preflight (fail fast, before any spend)
+        working-directory: platform
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BASE_URL: http://localhost:3000
+          PROOFLOOP_MODEL: claude-sonnet-4-6
+          PROOFLOOP_VERIFIER_MODEL: claude-opus-4-8
+        run: node --require ts-node/register/transpile-only src/preflight-cli.ts
+
+      - name: Initialize CI results ledger
+        working-directory: platform
+        run: node --require ts-node/register/transpile-only src/ledger-cli.ts init --out "$PL_LEDGER"
+
+      # §10 — Start the ACTUAL server process in its own session/process group (setsid), NOT an
+      # npm wrapper, so teardown can terminate exactly that group. SESSION_SECRET is generated
+      # ephemerally and stays in THIS step's shell only — it is NOT exported to $GITHUB_ENV, so
+      # no tester step ever sees it (D41). ANTHROPIC_API_KEY is deliberately absent here.
+      - name: Boot SUT (clean)
+        working-directory: app
+        env:
+          PROOFLOOP_BUGS: ${{ github.event.inputs.bugs || '' }}
+          APP_PORT: "3000"
+        run: |
+          SESSION_SECRET="$(openssl rand -hex 32)"
+          export SESSION_SECRET
+          setsid node --require ts-node/register/transpile-only src/server.ts \
+            > "$PL_SUTLOG" 2>&1 &
+          echo "SUT_PID=$!" >> "$GITHUB_ENV"
+          echo "Started SUT (pid/pgid $!)"
+
+      - name: Wait for SUT health
+        id: health
+        run: |
+          ok=false
+          for i in $(seq 1 30); do
+            if curl -fsS "http://localhost:3000/health" | grep -q '"status":"ok"'; then
+              ok=true; break
+            fi
+            sleep 2
+          done
+          if [ "$ok" = true ]; then
+            echo "app_ready=true" >> "$GITHUB_OUTPUT"
+            echo "SUT healthy."
+          else
+            echo "app_ready=false" >> "$GITHUB_OUTPUT"
+            echo "SUT did not become healthy within the timeout."
+          fi
+
+      # On readiness failure: mark every flow ERROR(APP_NOT_READY) and skip the run loop. The
+      # SUT log is still uploaded; report:ci still produces an (all-ERROR) aggregate.
+      - name: Mark all flows APP_NOT_READY (SUT never ready)
+        if: steps.health.outputs.app_ready != 'true'
+        working-directory: platform
+        run: |
+          node --require ts-node/register/transpile-only src/ledger-cli.ts mark-all-error \
+            --ledger "$PL_LEDGER" --stage run --error-class APP_NOT_READY \
+            --error-message "SUT did not become healthy within the timeout; see the uploaded SUT log"
+
+      # §10 — Serial flow loop. The loop must NOT abort on a flow's non-zero exit: each CLI is
+      # tested with `if !`, so a real infra/integrity failure (D38 non-zero) is recorded as ERROR
+      # and the loop continues. A FAIL/INCONCLUSIVE verdict exits 0 and reaches stage:"complete".
+      # Tester env ONLY — no PROOFLOOP_BUGS / SESSION_SECRET / PROOFLOOP_DEBUG_TOKEN here (D41).
+      - name: Run flows (serial; run -> verify -> report)
+        if: steps.health.outputs.app_ready == 'true'
+        working-directory: platform
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BASE_URL: http://localhost:3000
+          PROOFLOOP_MODEL: claude-sonnet-4-6
+          PROOFLOOP_VERIFIER_MODEL: claude-opus-4-8
+        run: |
+          record() {
+            node --require ts-node/register/transpile-only src/ledger-cli.ts record "$@"
+          }
+          mapfile -t FLOWS < <(node -e 'const l=require(process.env.PL_LEDGER);for(const e of l)console.log(e.flowPath)')
+          for flowPath in "${FLOWS[@]}"; do
+            absFlow="$GITHUB_WORKSPACE/$flowPath"
+            flowId="$(basename "$flowPath" .flow.md)"
+
+            if ! npm run run -- "$absFlow" --id-file "$RUNNER_TEMP/ci/run-id.txt" \
+                 > "$PL_LOGDIR/$flowId-run.log" 2>&1; then
+              record --ledger "$PL_LEDGER" --flow "$flowPath" --stage run \
+                --error-class RUN_FAILED \
+                --error-message "run-cli exited non-zero; see the uploaded run log"
+              continue
+            fi
+            runId="$(cat "$RUNNER_TEMP/ci/run-id.txt")"
+
+            if ! npm run verify -- --run "$runId" --id-file "$RUNNER_TEMP/ci/eval-id.txt" \
+                 > "$PL_LOGDIR/$flowId-verify.log" 2>&1; then
+              record --ledger "$PL_LEDGER" --flow "$flowPath" --stage verify --run-id "$runId" \
+                --error-class VERIFY_FAILED \
+                --error-message "verify-cli exited non-zero; see the uploaded verify log"
+              continue
+            fi
+            evalId="$(cat "$RUNNER_TEMP/ci/eval-id.txt")"
+
+            if ! npm run report -- --run "$runId" --evaluation "$evalId" \
+                 > "$PL_LOGDIR/$flowId-report.log" 2>&1; then
+              record --ledger "$PL_LEDGER" --flow "$flowPath" --stage report \
+                --run-id "$runId" --evaluation-id "$evalId" \
+                --error-class REPORT_FAILED \
+                --error-message "report-cli exited non-zero; see the uploaded report log"
+              continue
+            fi
+
+            # report-cli writes platform/runs/<runId>/reports/<evalId>/report.{json,html}.
+            # The ledger reportPath is REPO-ROOT-RELATIVE; report:ci resolves it via --repo-root.
+            record --ledger "$PL_LEDGER" --flow "$flowPath" --stage complete \
+              --run-id "$runId" --evaluation-id "$evalId" \
+              --report-path "platform/runs/$runId/reports/$evalId/report.json"
+          done
+
+      # §9 — Aggregate. `continue-on-error` so a LOUD report:ci failure (corrupted/inconsistent
+      # completed-report evidence — e.g. a run/evaluation join mismatch) does not abort before
+      # artifacts upload. On such a failure NO trustworthy summary.json is produced; the publish
+      # step writes a harness-authored fallback and the final step turns the job red.
+      - name: Aggregate (report:ci)
+        id: aggregate
+        continue-on-error: true
+        working-directory: platform
+        run: |
+          node --require ts-node/register/transpile-only src/report-ci-cli.ts \
+            --results "$PL_LEDGER" --out-dir "$PL_CIOUT" --repo-root "$GITHUB_WORKSPACE"
+
+      - name: Publish summary to job summary
+        if: always()
+        run: |
+          if [ -f "$PL_CIOUT/summary.md" ]; then
+            cat "$PL_CIOUT/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "<!-- proofloop-ci -->"
+              echo "## ProofLoop CI — aggregation failed"
+              echo ""
+              echo "\`report:ci\` could not produce a trustworthy \`summary.json\` from the recorded"
+              echo "ledger. This indicates corrupted or inconsistent completed-report evidence"
+              echo "(for example a run / evaluation join mismatch). **No verdict was inferred.**"
+              echo "See the uploaded \`ci-results.json\` and the per-flow artifacts and logs."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Sticky PR comment (D42). Inert under dispatch; activated for PRs in Task 5.
+      - name: Upsert sticky PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- proofloop-ci -->';
+            const path = `${process.env.PL_CIOUT}/summary.md`;
+            let body;
+            try {
+              body = fs.readFileSync(path, 'utf8');
+            } catch {
+              body = `${marker}\n## ProofLoop CI — aggregation failed\n\nNo trustworthy summary was produced. See the uploaded artifacts.`;
+            }
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.data.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proofloop-runs
+          path: platform/runs/**
+          if-no-files-found: ignore
+
+      - name: Upload CI summary + logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proofloop-ci-summary
+          path: |
+            ${{ env.PL_LEDGER }}
+            ${{ env.PL_CIOUT }}/**
+            ${{ env.PL_SUTLOG }}
+            ${{ env.PL_LOGDIR }}/**
+          if-no-files-found: warn
+
+      # Teardown terminates exactly the SUT process GROUP (negative PID = the setsid group),
+      # then best-effort confirms the port is released. Runs even on failure/cancellation.
+      - name: Teardown SUT
+        if: always()
+        run: |
+          if [ -n "${SUT_PID:-}" ]; then
+            kill -TERM -- "-${SUT_PID}" 2>/dev/null || kill -TERM "${SUT_PID}" 2>/dev/null || true
+            for i in $(seq 1 10); do
+              kill -0 "${SUT_PID}" 2>/dev/null || break
+              sleep 1
+            done
+            kill -KILL -- "-${SUT_PID}" 2>/dev/null || true
+          fi
+          if command -v ss >/dev/null 2>&1; then
+            if ss -ltn 2>/dev/null | grep -q ':3000 '; then
+              echo "WARNING: port 3000 still bound after teardown"
+            else
+              echo "port 3000 released"
+            fi
+          fi
+
+      # §9 / D42 — FINAL ENFORCEMENT (last step). Reads ONLY summary.json's `allPass`. A missing
+      # or invalid summary.json (aggregation failed) turns the job red, exactly like allPass=false.
+      # Evidence is already uploaded and (on PRs) commented before this runs.
+      - name: Enforce verdict (allPass)
+        if: always()
+        run: |
+          node -e '
+            const fs = require("fs");
+            const p = process.argv[1];
+            let ok = false;
+            try {
+              const s = JSON.parse(fs.readFileSync(p, "utf8"));
+              ok = s && s.allPass === true;
+            } catch (e) {
+              ok = false;
+            }
+            if (!ok) {
+              console.error("ProofLoop: not all flows cleared (or summary.json missing/invalid) — failing the job.");
+              process.exit(1);
+            }
+            console.log("ProofLoop: all flows cleared.");
+          ' "$PL_CIOUT/summary.json"

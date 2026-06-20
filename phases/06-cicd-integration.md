@@ -699,22 +699,22 @@ Done within the gate-frozen D38/D39 contract; tests + `npm run typecheck` green
 ---
 
 ### Task 4 — GitHub Actions workflow (`workflow_dispatch` only)
-* [ ] Add `.github/workflows/proofloop.yml`.
-* [ ] Triggers: **`workflow_dispatch` only** for now, with an optional `bugs` input
+* [x] Add `.github/workflows/proofloop.yml`.
+* [x] Triggers: **`workflow_dispatch` only** for now, with an optional `bugs` input
   (string; default empty) routed to the **SUT boot only**.
-* [ ] `permissions: { contents: read, pull-requests: write }`. **No
+* [x] `permissions: { contents: read, pull-requests: write }`. **No
   `pull_request_target`.**
-* [ ] `concurrency: { group: proofloop-${{ github.event.pull_request.number || github.ref }}, cancel-in-progress: true }`.
-* [ ] PR-event-only steps present but guarded by
+* [x] `concurrency: { group: proofloop-${{ github.event.pull_request.number || github.ref }}, cancel-in-progress: true }`.
+* [x] PR-event-only steps present but guarded by
   `if: github.event_name == 'pull_request'` (fork guard, sticky comment) — inert
   under dispatch.
-* [ ] Fork guard (D45): for `pull_request` where
+* [x] Fork guard (D45): for `pull_request` where
   `github.event.pull_request.head.repo.full_name != github.repository`, skip install
   and all spending steps, write a notice to `$GITHUB_STEP_SUMMARY`, and do not attempt
   the comment. (Recommended structure: an `authorize` job exposing an `authorized`
   output, with the main job `needs: [authorize]` and `if: needs.authorize.outputs.authorized == 'true'`,
   plus a small notice job for the unauthorized case.)
-* [ ] Pipeline (single job, serial flows):
+* [x] Pipeline (single job, serial flows):
   1. Checkout. Setup Node (pinned version from Task 0).
   2. `npm ci` in `app/` and `npm ci` in `platform/` (cache per lockfile).
   3. `npx playwright install --with-deps chromium` (in the package that owns the
@@ -746,15 +746,15 @@ Done within the gate-frozen D38/D39 contract; tests + `npm run typecheck` green
        Non-zero → `ERROR(REPORT_FAILED)`. Else set `reportPath`, `stage:"complete"`.
      * Update `ci-results.json` after each stage.
   9. `cd platform && npm run report:ci -- --results <ci-results.json> --out-dir <ci-out>`.
-* [ ] Upload artifacts (`if: always()`): per-run `report.html` / `report.json`,
+* [x] Upload artifacts (`if: always()`): per-run `report.html` / `report.json`,
   `run.json`, `events.jsonl`, the selected `evaluation.json`, `ci-results.json`,
   `summary.json`, `summary.md`, and the SUT log.
-* [ ] Append `summary.md` to `$GITHUB_STEP_SUMMARY` (`if: always()`).
-* [ ] Sticky comment step (`if: always() && github.event_name == 'pull_request'`):
+* [x] Append `summary.md` to `$GITHUB_STEP_SUMMARY` (`if: always()`).
+* [x] Sticky comment step (`if: always() && github.event_name == 'pull_request'`):
   `actions/github-script` finds a comment containing `<!-- proofloop-ci -->` and
   updates it, else creates one. (Inert under dispatch.)
-* [ ] Teardown: kill the SUT PID (`if: always()`).
-* [ ] **Final enforcement (last step, `if: always()`):** read `allPass` from
+* [x] Teardown: kill the SUT PID (`if: always()`).
+* [x] **Final enforcement (last step, `if: always()`):** read `allPass` from
   `summary.json`; `exit 1` unless `true`. Evidence is already uploaded and (on PRs)
   commented before this runs.
 
@@ -762,6 +762,54 @@ Done within the gate-frozen D38/D39 contract; tests + `npm run typecheck` green
 flows, all `PASS`, summary green, artifacts uploaded, job green; a `workflow_dispatch`
 run with `bugs: BUG-002` shows `add-to-cart` `FAIL` (criterion C2, Tax `$0.00`),
 `summary.md` names it as a behavioral regression, all artifacts present, job red.
+*(These two outcomes are runtime facts — they are the live-CI human gate below, not
+provable by the local static suite.)*
+
+#### Task 4 — implementation notes (2026-06-21)
+
+**Files:** `.github/workflows/proofloop.yml` (the workflow); `platform/src/ci/preflight.ts` +
+`platform/src/preflight-cli.ts` (resolver-based preflight); `platform/src/ci/ledger.ts` +
+`platform/src/ledger-cli.ts` (deterministic ledger transitions); `--repo-root` added to
+`platform/src/report-ci-cli.ts`; tests `test/preflight.test.ts`, `test/ledger.test.ts`,
+`test/workflow-proofloop.test.ts`, and `--repo-root` cases in `test/report-ci.test.ts`.
+
+* **§6 — workflow timeout:** the authorized `proofloop` job sets **`timeout-minutes: 30`** as an
+  outer boundary for orchestration hangs OUTSIDE ProofLoop's internal guards (MCP subprocess
+  deadlock, Chromium failing to terminate, a network call that never returns, a shell/process
+  hang, or a failure that blocks teardown/enforcement). The internal per-flow guards bound
+  individual executions/spend; `timeout-minutes` bounds the whole runner job. The static suite
+  asserts the value is in `[20, 30]`.
+* **§7 — resolver-based preflight (no duplicated literal):** preflight calls the SAME production
+  path the CLIs use — `readEngineConfig(env).model` (executor, `PROOFLOOP_MODEL ?? default`) and
+  `requireVerifierModel()` (verifier) — then validates the **resolved** ids through the production
+  pricing resolver (`loadPricing` + `ratesFor`). CI pins `PROOFLOOP_MODEL=claude-sonnet-4-6`
+  explicitly (audit + default-drift protection), but preflight proves the *resolved* model is
+  priceable, never the literal. No second model-ID list. A focused test proves an unpriced
+  `PROOFLOOP_MODEL` override fails through the resolver (the bogus id reaches pricing only via
+  `readEngineConfig`). Preflight also asserts `ANTHROPIC_API_KEY` present and the manifest parses.
+* **§9 — aggregation-failure fallback:** the `Aggregate (report:ci)` step is `continue-on-error`,
+  so a LOUD `report:ci` failure (corrupted/inconsistent completed-report evidence, e.g. a
+  run/evaluation join mismatch) does not abort before upload. On such a failure no trustworthy
+  `summary.json` is written; the publish step emits a **harness-authored** fallback to
+  `$GITHUB_STEP_SUMMARY` (no raw stderr, no secrets, no invented verdict), and the final
+  enforcement step turns the job red because `summary.json` is missing/invalid. This is distinct
+  from a normal pipeline `ERROR` row (all-`ERROR` aggregate, which `report:ci` *can* summarize).
+* **§10 — corrections retained:** `$GITHUB_WORKSPACE` is the explicit repo root passed to
+  `report:ci --repo-root`; every ledger `reportPath` is repo-root-relative; the SUT is started as
+  the **actual** `node … src/server.ts` process under `setsid` (its own process group) — never an
+  npm-wrapper PID — and teardown kills the negative PGID; installs/Chromium use
+  `working-directory:`; `SESSION_SECRET` is generated per-run and never exported to `$GITHUB_ENV`;
+  `PROOFLOOP_MODEL` is the confirmed production hook; `pull_request` is NOT enabled.
+* **Node pin:** `actions/setup-node@v4` with `node-version: "20.18.1"` (Task 0: no existing pin;
+  Node 20.x ≥ 20.6 required for `--env-file-if-exists`).
+
+**§8 — what the local suite proves vs. what it does NOT.** The committed tests prove ONLY: YAML
+structure; helper behavior (preflight/ledger CLIs); deterministic ledger transitions; preflight
+resolver logic; the static environment-partition rules; and the ordering of workflow steps. They
+**do not** prove the GitHub-runner integration seams — repo-root resolution on the runner, real
+`npm ci` / Chromium install, SUT process lifecycle across steps, `/health` readiness, teardown,
+or real artifact upload. **Those seams are unproven until the live dispatch** and are verified at
+the human gate below.
 
 ✅ **COMMIT:** `feat(ci): proofloop workflow (workflow_dispatch) — run→verify→report→aggregate`
 
@@ -782,6 +830,48 @@ The human confirms:
 * `summary.json` drives the red/green correctly; `summary.md` reads honestly with the
   single-run caveat;
 * the merge is still a human action (nothing auto-merges).
+
+#### Runner-integration seams to verify explicitly at this gate (§8)
+
+The local suite proves only structure/helpers/ordering/static-partitioning (see the Task 4
+note). The following GitHub-runner seams are **unproven until this live dispatch** and must be
+checked here:
+
+* **Repository & installation:** `$GITHUB_WORKSPACE` is the explicit repo root where required;
+  repo-root-relative `reportPath`s resolve on the runner; `npm ci` succeeds independently in
+  `app/` and `platform/`; Chromium installs successfully from `platform/`.
+* **Process lifecycle:** the real SUT server stays alive across steps; the recorded PID is the
+  long-running server / its dedicated process group (not an npm wrapper); teardown terminates
+  only that group; port 3000 is released; no orphaned Node, ts-node, npm, MCP, or Chromium
+  process remains.
+* **Environment partitioning:** the SUT receives `PROOFLOOP_BUGS`, `SESSION_SECRET`, `APP_PORT`;
+  tester processes receive the API key, `BASE_URL`, and resolved model config; tester-side
+  artifacts/logs contain **no** `PROOFLOOP_BUGS` / `PROOFLOOP_DEBUG_TOKEN` / `SESSION_SECRET` /
+  `ANTHROPIC_API_KEY` / seeded bug label.
+* **Artifacts & non-green:** `platform/runs/**` globs match only this job's artifacts;
+  clean-run reports/evaluations/manifests/events/CI-ledger/summaries/SUT-log upload; a real
+  behavioral `FAIL` still uploads complete evidence before enforcement turns the job red; an
+  app-readiness failure still produces the CI aggregate and uploads the SUT log; the
+  workflow-level timeout is visible and correctly configured.
+
+#### Aggregation-failure fallback — one deliberate live-gate test (§9)
+
+During a manual dispatch, temporarily corrupt **one** completed ledger entry so it refers to a
+report whose `source.runId` **or** `source.evaluationId` does not match the ledger (do **not**
+commit the corruption; do **not** alter verdict logic). Verify:
+
+1. `report:ci` exits non-zero; **no** trustworthy `summary.json` is accepted;
+2. the workflow writes the harness-authored fallback to `$GITHUB_STEP_SUMMARY`;
+3. final enforcement turns the job red (summary missing/invalid);
+4. the other four flows still upload full evidence (`run.json`, `events.jsonl`,
+   `evaluation.json`, `report.json`, `report.html`); the corrupted flow's available raw
+   artifacts and bounded stage logs also upload;
+5. **no** verdict is invented for the corrupted aggregate; **no** raw stderr or secret-bearing
+   data appears in the fallback summary.
+
+This distinguishes a normal pipeline `ERROR` row (summarizable) from corruption of an allegedly
+complete report (aggregation must fail loud rather than trust inconsistent evidence). **Record
+this live-gate result explicitly before Task 5 is authorized.**
 
 Do not self-certify. Do not wire `pull_request` before approval.
 
@@ -849,12 +939,14 @@ Do not self-certify. Do not wire `pull_request` before approval.
   and escaped `summary.md`; `allPass` never derived from Markdown; no LLM call.
 * [x] Pipeline `ERROR` flows are represented without inventing a verdict; `FAIL` /
   `INCONCLUSIVE` carry their criteria; decider/verifier costs separate.
-* [ ] Workflow runs on `workflow_dispatch`; serial flows; loop continues past a
-  failing flow; preflight fails fast; `/health` polled; SUT torn down.
-* [ ] Env partitioning enforced (tester env and SUT env disjoint per D41).
-* [ ] Artifacts uploaded on non-green; `$GITHUB_STEP_SUMMARY` populated; final
+* [x] Workflow runs on `workflow_dispatch`; serial flows; loop continues past a
+  failing flow; preflight fails fast; `/health` polled; SUT torn down. *(Authored +
+  statically verified; live runner behavior is confirmed at the live-CI gate.)*
+* [x] Env partitioning enforced (tester env and SUT env disjoint per D41). *(Static
+  rules tested; runtime grep is a live-gate check.)*
+* [x] Artifacts uploaded on non-green; `$GITHUB_STEP_SUMMARY` populated; final
   enforcement reads only `allPass`.
-* [ ] Fork-PR path: no spend, no comment, `$GITHUB_STEP_SUMMARY` notice, no
+* [x] Fork-PR path: no spend, no comment, `$GITHUB_STEP_SUMMARY` notice, no
   `pull_request_target`.
 * [x] 🚦 CLI-contract gate passed (Task-0 findings reviewed; D38/D39 contract frozen
   before Task 1).
@@ -864,7 +956,7 @@ Do not self-certify. Do not wire `pull_request` before approval.
 * [ ] README documents triggers, the single secret, the demo, branch-protection
   guidance (D47), and limitations.
 * [ ] Not registered as a branch-protection required check.
-* [ ] `npm test` and `npm run typecheck` pass in `platform/`.
+* [x] `npm test` and `npm run typecheck` pass in `platform/`.
 
 ---
 

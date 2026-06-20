@@ -22,7 +22,7 @@ import {
   serializeCiSummary,
   type CiSummary,
 } from "../src/ci/report-ci";
-import { reportCiCli } from "../src/report-ci-cli";
+import { parseReportCiArgs, reportCiCli } from "../src/report-ci-cli";
 
 // ─── cleanup ─────────────────────────────────────────────────────────────────
 
@@ -684,6 +684,34 @@ test("CLI exits 0 for a valid non-green aggregate (FAIL flow)", () => {
   assert.ok(written[mdPath] !== undefined, "summary.md must be written");
   const parsed = JSON.parse(written[jsonPath]);
   assert.equal(parsed.allPass, false);
+});
+
+test("parseReportCiArgs: captures --repo-root when given, omits it otherwise", () => {
+  const withRoot = parseReportCiArgs(["--results", "r.json", "--out-dir", "o", "--repo-root", "/ws"]);
+  assert.deepEqual(withRoot, { resultsPath: "r.json", outDir: "o", repoRoot: "/ws" });
+  const without = parseReportCiArgs(["--results", "r.json", "--out-dir", "o"]);
+  assert.deepEqual(without, { resultsPath: "r.json", outDir: "o" });
+  assert.equal(parseReportCiArgs(["--results", "r.json"]), null, "missing --out-dir → null");
+});
+
+test("CLI forwards --repo-root to the aggregator (resolved to absolute)", () => {
+  let seenRepoRoot: string | undefined = "UNSET";
+  const code = reportCiCli(
+    ["node", "report-ci-cli.ts", "--results", "r.json", "--out-dir", "o", "--repo-root", "ws"],
+    {
+      aggregate: (opts) => {
+        seenRepoRoot = opts.repoRoot;
+        return { summary: { schemaVersion: "1.0", allPass: true, counts: { pass: 0, fail: 0, inconclusive: 0, error: 0 }, flows: [] }, summaryJson: "{}\n", summaryMd: "<!-- proofloop-ci -->\n" };
+      },
+      mkdir: () => {},
+      writeFile: () => {},
+      out: { write: () => {} },
+      err: { write: () => {} },
+    },
+  );
+  assert.equal(code, 0);
+  assert.ok(seenRepoRoot !== undefined && seenRepoRoot !== "UNSET", "repoRoot must be forwarded");
+  assert.ok(path.isAbsolute(seenRepoRoot!), "repoRoot is resolved to an absolute path");
 });
 
 test("CLI exits 2 on invalid args (missing --out-dir)", () => {
