@@ -71,6 +71,41 @@ test("§6: the authorized main job has a bounded timeout between 20 and 30 minut
   assert.ok(t >= 20 && t <= 30, `timeout-minutes must be in [20,30], got ${t}`);
 });
 
+// ── §1: Node 24 runtime contract ────────────────────────────────────────────────────────────
+
+/** The single locked runtime. The workflow must pin exactly this — not 20.x, not omitted. */
+const REQUIRED_NODE_VERSION = "24";
+
+/** Locate the REAL actions/setup-node step by its `uses`, never by name/position. */
+function setupNodeStep(): Step {
+  const matches = STEPS.filter(
+    (st) => typeof st.uses === "string" && st.uses.startsWith("actions/setup-node"),
+  );
+  assert.equal(matches.length, 1, "there must be exactly one actions/setup-node step");
+  return matches[0];
+}
+
+/** The exact-match acceptance predicate, isolated so the mutation test can hammer it. */
+function acceptsNodeVersion(v: unknown): boolean {
+  return v === REQUIRED_NODE_VERSION;
+}
+
+test("§1: the actions/setup-node step pins Node exactly to \"24\" (read from the real step)", () => {
+  const v = (setupNodeStep().with ?? {})["node-version"];
+  assert.equal(v, REQUIRED_NODE_VERSION, `node-version must be exactly "${REQUIRED_NODE_VERSION}", got ${JSON.stringify(v)}`);
+  assert.ok(acceptsNodeVersion(v), "the located setup-node step satisfies the Node 24 contract");
+});
+
+test("§1 mutation: the Node assertion rejects 20, 20.18.1, omission, and the wrong type", () => {
+  // If the workflow regressed to any of these, the assertion above would fail.
+  assert.ok(!acceptsNodeVersion("20"), 'must reject "20"');
+  assert.ok(!acceptsNodeVersion("20.18.1"), 'must reject "20.18.1"');
+  assert.ok(!acceptsNodeVersion(undefined), "must reject an omitted node-version");
+  assert.ok(!acceptsNodeVersion(20), "must reject numeric 20 (only the string \"24\" is valid)");
+  assert.ok(!acceptsNodeVersion("24.1.0"), 'must reject a drifted patch like "24.1.0" (contract pins "24")');
+  assert.ok(acceptsNodeVersion("24"), 'accepts exactly "24"');
+});
+
 // ── fork guard (D45) ────────────────────────────────────────────────────────────────────────
 
 test("fork guard: authorize job gates the main job; fork-notice covers the unauthorized case", () => {

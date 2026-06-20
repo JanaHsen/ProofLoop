@@ -800,8 +800,12 @@ provable by the local static suite.)*
   npm-wrapper PID — and teardown kills the negative PGID; installs/Chromium use
   `working-directory:`; `SESSION_SECRET` is generated per-run and never exported to `$GITHUB_ENV`;
   `PROOFLOOP_MODEL` is the confirmed production hook; `pull_request` is NOT enabled.
-* **Node pin:** `actions/setup-node@v4` with `node-version: "20.18.1"` (Task 0: no existing pin;
-  Node 20.x ≥ 20.6 required for `--env-file-if-exists`).
+* **Node pin:** `actions/setup-node@v4` with `node-version: "24"` (the locked Node 24 runtime
+  contract). Node 24 clears the ≥ 20.6 floor `--env-file-if-exists` needs and runs the
+  `--require ts-node/register/transpile-only` CommonJS path used throughout. *(Corrected from an
+  earlier `20.18.1` pin — which the static suite failed to catch because it had no node-version
+  assertion — in `fix(ci): align workflow runtime with Node 24 contract`; the suite now asserts
+  exactly `"24"` and rejects 20.x.)*
 
 **§8 — what the local suite proves vs. what it does NOT.** The committed tests prove ONLY: YAML
 structure; helper behavior (preflight/ledger CLIs); deterministic ledger transitions; preflight
