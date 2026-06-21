@@ -815,6 +815,18 @@ resolver logic; the static environment-partition rules; and the ordering of work
 or real artifact upload. **Those seams are unproven until the live dispatch** and are verified at
 the human gate below.
 
+**Static contract coverage (21/21).** `test/workflow-proofloop.test.ts` now asserts all 21 Task 4
+static contract checks against the PARSED workflow, not raw substrings: trigger exclusivity
+(`workflow_dispatch` is the only key); official, version-pinned `actions/*`; the permissions object
+is exactly `{contents: read, pull-requests: write}`; exhaustive env partitioning across every step
+(SUT-only vars only on the SUT boot surface, `SESSION_SECRET` never reaching `$GITHUB_ENV`,
+`PROOFLOOP_DEBUG_TOKEN` on no executable surface, tester steps limited to tester config); no
+`--summary`; single-execution-per-flow with no retry construct; serial single-loop execution;
+the app-not-ready branch marking every flow and still reaching aggregation; the sticky comment as
+an `always()`+PR-only, same-repo-gated, marker-based single upsert; and no bug-ledger /
+expected-verdict / coverage ground-truth in the workflow. These additions changed **tests only** —
+the production workflow was not modified (no new test exposed a defect).
+
 ✅ **COMMIT:** `feat(ci): proofloop workflow (workflow_dispatch) — run→verify→report→aggregate`
 
 ---

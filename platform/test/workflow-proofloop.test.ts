@@ -42,6 +42,20 @@ function idx(nameFragment: string): number {
   return STEPS.findIndex((st) => (st.name ?? "").toLowerCase().includes(nameFragment.toLowerCase()));
 }
 
+/** Every step across EVERY job (authorize, fork-notice, proofloop) — for exhaustive sweeps. */
+function allSteps(): Step[] {
+  const out: Step[] = [];
+  for (const jobName of Object.keys(DOC.jobs)) {
+    for (const s of (DOC.jobs[jobName].steps ?? []) as Step[]) out.push(s);
+  }
+  return out;
+}
+
+/** The executable surface of a step: its env (keys + values), run body, and `with` block. */
+function executableSurface(s: Step): string {
+  return JSON.stringify({ env: s.env ?? {}, run: s.run ?? "", with: s.with ?? {} });
+}
+
 // ── triggers / permissions / concurrency ───────────────────────────────────────────────────
 
 test("triggers: workflow_dispatch ONLY — no pull_request (Task 5 adds it)", () => {
@@ -214,4 +228,182 @@ test("teardown runs always and targets the SUT process group", () => {
   const teardown = step("Teardown SUT");
   assert.match(String(teardown.if), /always\(\)/);
   assert.match(String(teardown.run), /-\$\{SUT_PID\}|-"?\$\{?SUT_PID\}?"?/, "kills the negative PID (process group)");
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// Task 4 contract coverage gaps — close the PARTIAL/MISSING items to genuine 21/21 static cover.
+// Every assertion below inspects PARSED fields (not raw substrings) except where a raw-file
+// guard is explicitly secondary.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+
+// req 1 — workflow YAML parses
+test("req1: the workflow parses to an object exposing jobs.proofloop", () => {
+  assert.equal(typeof DOC, "object");
+  assert.ok(DOC && DOC.jobs && DOC.jobs.proofloop, "parses to a jobs.proofloop object");
+});
+
+// req 2 — workflow_dispatch is the ONLY trigger (rejects push/schedule/pull_request[_target]/…)
+test("req2: workflow_dispatch is the ONLY trigger key", () => {
+  assert.deepEqual(Object.keys(ON).sort(), ["workflow_dispatch"], "no push/schedule/pull_request(_target)/other trigger");
+});
+
+// req 6 — only official, version-pinned actions
+test("req6: every action is official (actions/*) and pinned to an explicit major version", () => {
+  const uses = allSteps().map((s) => s.uses).filter((u): u is string => typeof u === "string");
+  assert.ok(uses.length >= 4, "the workflow uses several actions");
+  for (const u of uses) {
+    assert.ok(u.startsWith("actions/"), `non-official action: ${u}`);
+    assert.match(u, /@v\d+/, `action must pin an explicit major version: ${u}`);
+  }
+});
+
+// req 7 — permissions are EXACTLY the approved minimum (no extra grants)
+test("req7: the permissions object is exactly { contents: read, pull-requests: write }", () => {
+  assert.deepEqual(DOC.permissions, { contents: "read", "pull-requests": "write" });
+});
+
+// req 8/9/10 — exhaustive environment partitioning over every parsed step
+test("req8/9/10: exhaustive env partition — SUT-only vars only on SUT boot, debug token nowhere", () => {
+  const SUT_ONLY = ["PROOFLOOP_BUGS", "APP_PORT", "SESSION_SECRET", "PROOFLOOP_DEBUG_TOKEN"];
+  const TESTER_ALLOWED = ["ANTHROPIC_API_KEY", "BASE_URL", "PROOFLOOP_MODEL", "PROOFLOOP_VERIFIER_MODEL"];
+
+  // no job-level env on the authorized main job
+  assert.equal(MAIN.env, undefined, "the main job must not declare a job-wide env block");
+
+  // PROOFLOOP_DEBUG_TOKEN must not appear in ANY executable surface of ANY step (env keys/values,
+  // run bodies, with-blocks) across ALL jobs. YAML comments are stripped by the parser, so an
+  // explanatory comment that names it does not trip this.
+  for (const s of allSteps()) {
+    assert.ok(
+      !executableSurface(s).includes("PROOFLOOP_DEBUG_TOKEN"),
+      `PROOFLOOP_DEBUG_TOKEN must not appear in any executable surface of "${s.name ?? s.id ?? "?"}"`,
+    );
+  }
+
+  // Per main-job step: SUT-only env vars (PROOFLOOP_BUGS/APP_PORT) and SESSION_SECRET handling.
+  for (const s of STEPS) {
+    const name = s.name ?? "";
+    const envKeys = Object.keys(s.env ?? {});
+    const run = s.run ?? "";
+    const isBoot = name.includes("Boot SUT");
+
+    for (const v of ["PROOFLOOP_BUGS", "APP_PORT"]) {
+      if (envKeys.includes(v)) assert.ok(isBoot, `${v} env may appear only on the SUT boot step (found on "${name}")`);
+    }
+    assert.ok(!envKeys.includes("SESSION_SECRET"), `SESSION_SECRET must never be a step env key (on "${name}")`);
+    if (run.includes("SESSION_SECRET")) {
+      assert.ok(isBoot, `SESSION_SECRET may be generated only in the SUT boot command (found in "${name}")`);
+      for (const line of run.split("\n")) {
+        if (line.includes("SESSION_SECRET")) {
+          assert.ok(!line.includes("GITHUB_ENV"), `SESSION_SECRET must never be written to $GITHUB_ENV: ${line.trim()}`);
+        }
+      }
+    }
+  }
+
+  // The SUT boot step is the ONLY step carrying SUT-only vars as env, and exactly these two.
+  const boot = step("Boot SUT");
+  assert.deepEqual(
+    Object.keys(boot.env ?? {}).filter((k) => SUT_ONLY.includes(k)).sort(),
+    ["APP_PORT", "PROOFLOOP_BUGS"],
+    "SUT boot carries exactly APP_PORT + PROOFLOOP_BUGS as SUT-only env",
+  );
+
+  // Every non-SUT step (tester, aggregation, upload, teardown, enforcement, ledger) receives NO
+  // SUT-only env var.
+  for (const s of STEPS) {
+    if ((s.name ?? "").includes("Boot SUT")) continue;
+    const leaked = Object.keys(s.env ?? {}).filter((k) => SUT_ONLY.includes(k));
+    assert.deepEqual(leaked, [], `"${s.name}" must receive no SUT-only env vars (found ${leaked.join(", ")})`);
+  }
+
+  // Tester/model steps receive ONLY their allowed tester configuration.
+  for (const n of ["Preflight", "Run flows"]) {
+    for (const k of Object.keys(step(n).env ?? {})) {
+      assert.ok(TESTER_ALLOWED.includes(k), `"${n}" has an unexpected env var: ${k}`);
+    }
+  }
+});
+
+// req 11 — no --summary call
+test("req11: no executable command invokes --summary", () => {
+  for (const s of allSteps()) {
+    assert.ok(!(s.run ?? "").includes("--summary"), `--summary found in step "${s.name}"`);
+  }
+  assert.ok(!RAW.includes("--summary"), "raw-file guard: --summary absent");
+});
+
+// req 12 — no execution retry: each CLI runs once in one manifest loop, no retry construct
+test("req12: the flow loop runs each CLI exactly once with no retry construct", () => {
+  const run = step("Run flows").run ?? "";
+  const count = (re: RegExp) => (run.match(re) ?? []).length;
+  assert.equal(count(/npm run run --/g), 1, "exactly one `npm run run --`");
+  assert.equal(count(/npm run verify --/g), 1, "exactly one `npm run verify --`");
+  assert.equal(count(/npm run report --/g), 1, "exactly one `npm run report --`");
+  assert.equal(count(/for flowPath in/g), 1, "exactly one manifest-flow loop");
+  assert.ok(!/\buntil\b/.test(run), "no until-loop retry in the flow loop");
+  assert.ok(!/\bretry\b|\battempt\b|\brerun\b/i.test(run), "no retry/attempt/rerun construct");
+  assert.equal(MAIN.strategy, undefined, "no job strategy/matrix");
+});
+
+// req 13 — serial execution: one loop, run→verify→report order, no backgrounding
+test("req13: flows execute serially (one loop, ordered CLIs, no backgrounding/matrix)", () => {
+  assert.equal(MAIN.strategy, undefined, "no matrix strategy");
+  const run = step("Run flows").run ?? "";
+  assert.match(run, /for flowPath in/, "one loop iterates the manifest flows");
+  const iRun = run.indexOf("npm run run --");
+  const iVerify = run.indexOf("npm run verify --");
+  const iReport = run.indexOf("npm run report --");
+  assert.ok(iRun >= 0 && iRun < iVerify && iVerify < iReport, "run → verify → report inside the loop");
+  assert.ok(!run.includes("setsid"), "no flow is launched via setsid (that's the SUT boot, a different step)");
+  for (const line of run.split("\n")) {
+    const t = line.trim();
+    assert.ok(!(t.endsWith("&") && !t.endsWith("&&")), `flow CLI must not be backgrounded: ${t}`);
+  }
+});
+
+// req 14 — app-not-ready path still reaches aggregation
+test("req14: the app-not-ready branch updates all flows and still reaches aggregation", () => {
+  assert.match(String(step("Mark all flows").if), /app_ready != 'true'/);
+  assert.match(String(step("Run flows").if), /app_ready == 'true'/);
+  assert.equal(step("Aggregate").if, undefined, "aggregation is unconditional w.r.t. readiness");
+  assert.ok(idx("Mark all flows") < idx("Aggregate"), "mark-all precedes aggregation");
+  assert.ok(idx("Run flows") < idx("Aggregate"), "the run loop precedes aggregation");
+  assert.match(String(step("Mark all flows").run), /mark-all-error/, "the not-ready path marks EVERY flow via ledger mark-all-error");
+});
+
+// req 18 — sticky comment: always()+PR-only, same-repo gated, marker-based upsert (no dup create)
+test("req18: sticky comment is always()+PR-only, same-repo gated, marker-based single upsert", () => {
+  const c = step("Upsert sticky PR comment");
+  assert.match(String(c.if), /always\(\)/, "runs always()");
+  assert.match(String(c.if), /github\.event_name == 'pull_request'/, "PR events only");
+  // Same-repository authorization is inherited from the main job's gate + the authorize rule.
+  assert.match(String(MAIN.if), /needs\.authorize\.outputs\.authorized == 'true'/, "main job is same-repo gated");
+  const authRun = String(DOC.jobs.authorize.steps[0].run ?? "");
+  assert.match(authRun, /head\.repo\.full_name.*github\.repository/, "authorize permits only same-repository PRs");
+  // Script: marker, summary-file availability (try/catch on summary.md), search, update-or-create.
+  const script = String((c.with as Record<string, unknown>).script);
+  assert.ok(script.includes("<!-- proofloop-ci -->"), "uses the upsert marker");
+  assert.match(script, /summary\.md/, "reads the generated summary file");
+  assert.match(script, /try\s*\{[\s\S]*readFileSync[\s\S]*\}\s*catch/, "handles summary-file availability (fallback)");
+  assert.match(script, /\.find\([\s\S]*includes\(marker\)/, "searches for an existing marker comment");
+  assert.match(
+    script,
+    /if \(existing\)\s*\{[\s\S]*updateComment[\s\S]*\}\s*else\s*\{[\s\S]*createComment/,
+    "updates when found, creates ONLY in the else branch (no unconditional create)",
+  );
+});
+
+// req 19 — no ground-truth (bug-ledger / expected-verdict / coverage) leaks into the workflow
+test("req19: no bug-ledger / expected-verdict / coverage ground-truth appears in the workflow", () => {
+  const forbidden = [
+    /\bBUG-\d+\b/i, /bug-ledger/i, /bug_ledger/i,
+    /expectedVerdict/i, /expected_verdict/i, /expected verdict/i,
+    /flow-coverage/i, /fixtures\/bug-ledger/i,
+  ];
+  for (const re of forbidden) {
+    assert.ok(!re.test(RAW), `forbidden ground-truth reference matched ${re}`);
+  }
+  // The generic `bugs` input / PROOFLOOP_BUGS are allowed only as the SUT config surface — never
+  // interpreted into an expected outcome and never on a tester step (proven in req8/9/10).
 });
