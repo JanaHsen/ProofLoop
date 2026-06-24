@@ -259,6 +259,22 @@ which is what makes the containment check pass cleanly. The `normalizedValue` is
 would be meaning-work, which D21 forbids). The exact downgrade policy is a verifier-contract-gate
 review item.
 
+**Same-ref attribution surfaces (citation-surface correction, Phase 6 live-gate finding).** The
+`observedTextPresent` check is decided against the text attributable to the **exact cited ref** —
+never a whole-snapshot search. That surface is the union of four deterministic, same-ref forms
+(`platform/src/verify/citation.ts`):
+1. the **accessible name** and/or the ref's own **inline value** (containment — `"$64.87"` ⊆ `"Total $64.87"`);
+2. a **strictly-parsed canonical decorated line** for the *same* ref — `role "name" [ref=…] [meta]: value` — accepted only when the embedded ref equals the cited ref and the parsed name **and** value exactly match that ref's canonical name/value (decoration like the role word, quotes, `[ref=…]`, `[level=…]`, `[cursor=…]`, and the colon is parsed, never counted as evidence);
+3. **anonymous (ref-less) descendant text inside an approved semantic container** that *is* the cited ref — roles `paragraph` / `status` / `alert` only, searching that ref's **own subtree** in document order with deterministic whitespace normalization;
+4. **page title / URL** metadata, only when the cited ref is the **page/root** node.
+
+This explicitly does **not** permit: whole-page or cross-snapshot search; sibling or ancestor
+search; fuzzy / approximate / semantic / token-based matching; any hardcoded website wording or
+flow/criterion/ref constant; or ignoring an invalid citation. The four integrity checks
+(`snapshotProvided` / `digestMatches` / `refPresent` / `observedTextPresent`) and the
+`INVALID_CITATION` downgrade are unchanged — a verdict resting on any citation not attributable to
+its **named** ref is still downgraded to `INCONCLUSIVE / INVALID_CITATION`.
+
 ---
 
 ## Task checklist

@@ -889,6 +889,27 @@ This distinguishes a normal pipeline `ERROR` row (summarizable) from corruption 
 complete report (aggregation must fail loud rather than trust inconsistent evidence). **Record
 this live-gate result explicitly before Task 5 is authorized.**
 
+#### Live-gate finding — first clean dispatch (CI run `27985544723`, 2026-06-22)
+
+The first clean `workflow_dispatch` exercised every runner seam correctly (Node 24; `npm ci` in
+both packages; Chromium; resolver preflight; real SUT under its own process group with `/health`
+ready, teardown, port 3000 released; serial five-flow loop; deterministic aggregation; both
+artifact bundles uploaded; `allPass` enforced → job red), and env-partition/secret-residue scans
+of the downloaded artifacts were clean. **login + add-to-cart PASSED; checkout, checkout-mobile,
+and form returned `INCONCLUSIVE / INVALID_CITATION`** — a *citation-surface* finding, not a CI
+defect: the verifier cited faithful evidence in shapes the per-ref containment check did not
+attribute to the named ref (a canonical decorated node line; anonymous text inside a
+`paragraph`/`status` container; the page title/URL on the root node). The **deterministic
+citation-surface correction** (`fix(verify): validate canonical same-ref citation surfaces`)
+widens what counts as attributable to the *same* ref to exactly those four surfaces (see the
+Phase 3 citation-validation contract) without weakening the invalid-citation guard; it is proven
+offline by replaying this run's sanitized artifacts (`platform/test/fixtures/citation/clean-run-27985544723.json`),
+**no model call**. checkout:C1, form:C1, form:C2 clear with the fix; checkout:C3 (a genuine
+sibling mis-citation) and checkout-mobile:C1 (a non-canonical `page "…", url …` pseudo-line) retain
+a residual genuine mis-citation the guard correctly keeps invalid — candidates for the *optional*
+later verifier-prompt clarification, which is **not** required for correctness. A second clean
+dispatch to confirm green end-to-end requires separate human authorization.
+
 Do not self-certify. Do not wire `pull_request` before approval.
 
 ---

@@ -1,0 +1,1515 @@
+{
+  "provenance": {
+    "ciRunId": "27985544723",
+    "source": "clean Phase 6 workflow_dispatch run (run→verify→report→aggregate), read-only sanitized subset",
+    "note": "Snapshots are verbatim (yaml + digest preserved so the digest check holds). Observations are the recorded verifier citations. Contains no API key, token, session secret, bug-state, machine-specific path, or unrelated runtime artifact."
+  },
+  "cases": {
+    "checkout:C1": {
+      "window": [
+        {
+          "snapshotId": "snapshot-016",
+          "kind": "terminal",
+          "digest": "sha256:368bc5622c8aaeaab1b74ff257e1c34d31a04c12038b817608f69105ae0db1ca",
+          "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - generic [ref=e8]:\n        - text: Signed in as\n        - strong [ref=e9]: alice\n      - button \"Log out\" [ref=e11] [cursor=pointer]\n  - main [ref=e12]:\n    - heading \"Order placed\" [level=1] [ref=e13]\n    - paragraph [ref=e14]:\n      - text: Thank you. Your order\n      - strong [ref=e15]: O-00001\n      - text: has been recorded.\n    - table [ref=e16]:\n      - rowgroup [ref=e17]:\n        - row \"Item Unit Qty Line total\" [ref=e18]:\n          - columnheader \"Item\" [ref=e19]\n          - columnheader \"Unit\" [ref=e20]\n          - columnheader \"Qty\" [ref=e21]\n          - columnheader \"Line total\" [ref=e22]\n      - rowgroup [ref=e23]:\n        - row \"Desk Lamp $24.99 2 $49.98\" [ref=e24]:\n          - cell \"Desk Lamp\" [ref=e25]\n          - cell \"$24.99\" [ref=e26]\n          - cell \"2\" [ref=e27]\n          - cell \"$49.98\" [ref=e28]\n        - row \"Coffee Mug $8.99 1 $8.99\" [ref=e29]:\n          - cell \"Coffee Mug\" [ref=e30]\n          - cell \"$8.99\" [ref=e31]\n          - cell \"1\" [ref=e32]\n          - cell \"$8.99\" [ref=e33]\n      - rowgroup [ref=e34]:\n        - row \"Subtotal $58.97\" [ref=e35]:\n          - cell \"Subtotal\" [ref=e36]\n          - cell \"$58.97\" [ref=e37]\n        - row \"Tax $5.90\" [ref=e38]:\n          - cell \"Tax\" [ref=e39]\n          - cell \"$5.90\" [ref=e40]\n        - row \"Total $64.87\" [ref=e41]:\n          - cell \"Total\" [ref=e42]:\n            - strong [ref=e43]: Total\n          - cell \"$64.87\" [ref=e44]:\n            - strong [ref=e45]: $64.87\n    - paragraph [ref=e46]:\n      - link \"Continue shopping\" [ref=e47] [cursor=pointer]:\n        - /url: /products",
+          "refs": [
+            "e1",
+            "e2",
+            "e3",
+            "e4",
+            "e5",
+            "e6",
+            "e7",
+            "e8",
+            "e9",
+            "e11",
+            "e12",
+            "e13",
+            "e14",
+            "e15",
+            "e16",
+            "e17",
+            "e18",
+            "e19",
+            "e20",
+            "e21",
+            "e22",
+            "e23",
+            "e24",
+            "e25",
+            "e26",
+            "e27",
+            "e28",
+            "e29",
+            "e30",
+            "e31",
+            "e32",
+            "e33",
+            "e34",
+            "e35",
+            "e36",
+            "e37",
+            "e38",
+            "e39",
+            "e40",
+            "e41",
+            "e42",
+            "e43",
+            "e44",
+            "e45",
+            "e46",
+            "e47"
+          ],
+          "elements": [
+            {
+              "ref": "e1",
+              "role": "generic"
+            },
+            {
+              "ref": "e2",
+              "role": "banner"
+            },
+            {
+              "ref": "e3",
+              "role": "link",
+              "name": "ProofLoop SUT"
+            },
+            {
+              "ref": "e4",
+              "role": "navigation"
+            },
+            {
+              "ref": "e5",
+              "role": "link",
+              "name": "Products"
+            },
+            {
+              "ref": "e6",
+              "role": "link",
+              "name": "Cart"
+            },
+            {
+              "ref": "e7",
+              "role": "link",
+              "name": "Form"
+            },
+            {
+              "ref": "e8",
+              "role": "generic"
+            },
+            {
+              "ref": "e9",
+              "role": "strong"
+            },
+            {
+              "ref": "e11",
+              "role": "button",
+              "name": "Log out"
+            },
+            {
+              "ref": "e12",
+              "role": "main"
+            },
+            {
+              "ref": "e13",
+              "role": "heading",
+              "name": "Order placed"
+            },
+            {
+              "ref": "e14",
+              "role": "paragraph"
+            },
+            {
+              "ref": "e15",
+              "role": "strong"
+            },
+            {
+              "ref": "e16",
+              "role": "table"
+            },
+            {
+              "ref": "e17",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e18",
+              "role": "row",
+              "name": "Item Unit Qty Line total"
+            },
+            {
+              "ref": "e19",
+              "role": "columnheader",
+              "name": "Item"
+            },
+            {
+              "ref": "e20",
+              "role": "columnheader",
+              "name": "Unit"
+            },
+            {
+              "ref": "e21",
+              "role": "columnheader",
+              "name": "Qty"
+            },
+            {
+              "ref": "e22",
+              "role": "columnheader",
+              "name": "Line total"
+            },
+            {
+              "ref": "e23",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e24",
+              "role": "row",
+              "name": "Desk Lamp $24.99 2 $49.98"
+            },
+            {
+              "ref": "e25",
+              "role": "cell",
+              "name": "Desk Lamp"
+            },
+            {
+              "ref": "e26",
+              "role": "cell",
+              "name": "$24.99"
+            },
+            {
+              "ref": "e27",
+              "role": "cell",
+              "name": "2"
+            },
+            {
+              "ref": "e28",
+              "role": "cell",
+              "name": "$49.98"
+            },
+            {
+              "ref": "e29",
+              "role": "row",
+              "name": "Coffee Mug $8.99 1 $8.99"
+            },
+            {
+              "ref": "e30",
+              "role": "cell",
+              "name": "Coffee Mug"
+            },
+            {
+              "ref": "e31",
+              "role": "cell",
+              "name": "$8.99"
+            },
+            {
+              "ref": "e32",
+              "role": "cell",
+              "name": "1"
+            },
+            {
+              "ref": "e33",
+              "role": "cell",
+              "name": "$8.99"
+            },
+            {
+              "ref": "e34",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e35",
+              "role": "row",
+              "name": "Subtotal $58.97"
+            },
+            {
+              "ref": "e36",
+              "role": "cell",
+              "name": "Subtotal"
+            },
+            {
+              "ref": "e37",
+              "role": "cell",
+              "name": "$58.97"
+            },
+            {
+              "ref": "e38",
+              "role": "row",
+              "name": "Tax $5.90"
+            },
+            {
+              "ref": "e39",
+              "role": "cell",
+              "name": "Tax"
+            },
+            {
+              "ref": "e40",
+              "role": "cell",
+              "name": "$5.90"
+            },
+            {
+              "ref": "e41",
+              "role": "row",
+              "name": "Total $64.87"
+            },
+            {
+              "ref": "e42",
+              "role": "cell",
+              "name": "Total"
+            },
+            {
+              "ref": "e43",
+              "role": "strong"
+            },
+            {
+              "ref": "e44",
+              "role": "cell",
+              "name": "$64.87"
+            },
+            {
+              "ref": "e45",
+              "role": "strong"
+            },
+            {
+              "ref": "e46",
+              "role": "paragraph"
+            },
+            {
+              "ref": "e47",
+              "role": "link",
+              "name": "Continue shopping"
+            }
+          ],
+          "pageUrl": "http://localhost:3000/order/O-00001",
+          "pageTitle": "Order O-00001"
+        }
+      ],
+      "observations": [
+        {
+          "label": "Order confirmation heading",
+          "observedText": "Order placed",
+          "snapshotId": "snapshot-016",
+          "ref": "e13"
+        },
+        {
+          "label": "Order ID recorded",
+          "observedText": "O-00001",
+          "snapshotId": "snapshot-016",
+          "ref": "e15"
+        },
+        {
+          "label": "Recorded confirmation text",
+          "observedText": "has been recorded.",
+          "snapshotId": "snapshot-016",
+          "ref": "e14"
+        },
+        {
+          "label": "Order page URL/title",
+          "observedText": "Order O-00001",
+          "snapshotId": "snapshot-016",
+          "ref": "e1"
+        },
+        {
+          "label": "Continue shopping link present",
+          "observedText": "Continue shopping",
+          "snapshotId": "snapshot-016",
+          "ref": "e47"
+        }
+      ]
+    },
+    "checkout:C3": {
+      "window": [
+        {
+          "snapshotId": "snapshot-018",
+          "kind": "terminal",
+          "digest": "sha256:368bc5622c8aaeaab1b74ff257e1c34d31a04c12038b817608f69105ae0db1ca",
+          "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - generic [ref=e8]:\n        - text: Signed in as\n        - strong [ref=e9]: alice\n      - button \"Log out\" [ref=e11] [cursor=pointer]\n  - main [ref=e12]:\n    - heading \"Order placed\" [level=1] [ref=e13]\n    - paragraph [ref=e14]:\n      - text: Thank you. Your order\n      - strong [ref=e15]: O-00001\n      - text: has been recorded.\n    - table [ref=e16]:\n      - rowgroup [ref=e17]:\n        - row \"Item Unit Qty Line total\" [ref=e18]:\n          - columnheader \"Item\" [ref=e19]\n          - columnheader \"Unit\" [ref=e20]\n          - columnheader \"Qty\" [ref=e21]\n          - columnheader \"Line total\" [ref=e22]\n      - rowgroup [ref=e23]:\n        - row \"Desk Lamp $24.99 2 $49.98\" [ref=e24]:\n          - cell \"Desk Lamp\" [ref=e25]\n          - cell \"$24.99\" [ref=e26]\n          - cell \"2\" [ref=e27]\n          - cell \"$49.98\" [ref=e28]\n        - row \"Coffee Mug $8.99 1 $8.99\" [ref=e29]:\n          - cell \"Coffee Mug\" [ref=e30]\n          - cell \"$8.99\" [ref=e31]\n          - cell \"1\" [ref=e32]\n          - cell \"$8.99\" [ref=e33]\n      - rowgroup [ref=e34]:\n        - row \"Subtotal $58.97\" [ref=e35]:\n          - cell \"Subtotal\" [ref=e36]\n          - cell \"$58.97\" [ref=e37]\n        - row \"Tax $5.90\" [ref=e38]:\n          - cell \"Tax\" [ref=e39]\n          - cell \"$5.90\" [ref=e40]\n        - row \"Total $64.87\" [ref=e41]:\n          - cell \"Total\" [ref=e42]:\n            - strong [ref=e43]: Total\n          - cell \"$64.87\" [ref=e44]:\n            - strong [ref=e45]: $64.87\n    - paragraph [ref=e46]:\n      - link \"Continue shopping\" [ref=e47] [cursor=pointer]:\n        - /url: /products",
+          "refs": [
+            "e1",
+            "e2",
+            "e3",
+            "e4",
+            "e5",
+            "e6",
+            "e7",
+            "e8",
+            "e9",
+            "e11",
+            "e12",
+            "e13",
+            "e14",
+            "e15",
+            "e16",
+            "e17",
+            "e18",
+            "e19",
+            "e20",
+            "e21",
+            "e22",
+            "e23",
+            "e24",
+            "e25",
+            "e26",
+            "e27",
+            "e28",
+            "e29",
+            "e30",
+            "e31",
+            "e32",
+            "e33",
+            "e34",
+            "e35",
+            "e36",
+            "e37",
+            "e38",
+            "e39",
+            "e40",
+            "e41",
+            "e42",
+            "e43",
+            "e44",
+            "e45",
+            "e46",
+            "e47"
+          ],
+          "elements": [
+            {
+              "ref": "e1",
+              "role": "generic"
+            },
+            {
+              "ref": "e2",
+              "role": "banner"
+            },
+            {
+              "ref": "e3",
+              "role": "link",
+              "name": "ProofLoop SUT"
+            },
+            {
+              "ref": "e4",
+              "role": "navigation"
+            },
+            {
+              "ref": "e5",
+              "role": "link",
+              "name": "Products"
+            },
+            {
+              "ref": "e6",
+              "role": "link",
+              "name": "Cart"
+            },
+            {
+              "ref": "e7",
+              "role": "link",
+              "name": "Form"
+            },
+            {
+              "ref": "e8",
+              "role": "generic"
+            },
+            {
+              "ref": "e9",
+              "role": "strong"
+            },
+            {
+              "ref": "e11",
+              "role": "button",
+              "name": "Log out"
+            },
+            {
+              "ref": "e12",
+              "role": "main"
+            },
+            {
+              "ref": "e13",
+              "role": "heading",
+              "name": "Order placed"
+            },
+            {
+              "ref": "e14",
+              "role": "paragraph"
+            },
+            {
+              "ref": "e15",
+              "role": "strong"
+            },
+            {
+              "ref": "e16",
+              "role": "table"
+            },
+            {
+              "ref": "e17",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e18",
+              "role": "row",
+              "name": "Item Unit Qty Line total"
+            },
+            {
+              "ref": "e19",
+              "role": "columnheader",
+              "name": "Item"
+            },
+            {
+              "ref": "e20",
+              "role": "columnheader",
+              "name": "Unit"
+            },
+            {
+              "ref": "e21",
+              "role": "columnheader",
+              "name": "Qty"
+            },
+            {
+              "ref": "e22",
+              "role": "columnheader",
+              "name": "Line total"
+            },
+            {
+              "ref": "e23",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e24",
+              "role": "row",
+              "name": "Desk Lamp $24.99 2 $49.98"
+            },
+            {
+              "ref": "e25",
+              "role": "cell",
+              "name": "Desk Lamp"
+            },
+            {
+              "ref": "e26",
+              "role": "cell",
+              "name": "$24.99"
+            },
+            {
+              "ref": "e27",
+              "role": "cell",
+              "name": "2"
+            },
+            {
+              "ref": "e28",
+              "role": "cell",
+              "name": "$49.98"
+            },
+            {
+              "ref": "e29",
+              "role": "row",
+              "name": "Coffee Mug $8.99 1 $8.99"
+            },
+            {
+              "ref": "e30",
+              "role": "cell",
+              "name": "Coffee Mug"
+            },
+            {
+              "ref": "e31",
+              "role": "cell",
+              "name": "$8.99"
+            },
+            {
+              "ref": "e32",
+              "role": "cell",
+              "name": "1"
+            },
+            {
+              "ref": "e33",
+              "role": "cell",
+              "name": "$8.99"
+            },
+            {
+              "ref": "e34",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e35",
+              "role": "row",
+              "name": "Subtotal $58.97"
+            },
+            {
+              "ref": "e36",
+              "role": "cell",
+              "name": "Subtotal"
+            },
+            {
+              "ref": "e37",
+              "role": "cell",
+              "name": "$58.97"
+            },
+            {
+              "ref": "e38",
+              "role": "row",
+              "name": "Tax $5.90"
+            },
+            {
+              "ref": "e39",
+              "role": "cell",
+              "name": "Tax"
+            },
+            {
+              "ref": "e40",
+              "role": "cell",
+              "name": "$5.90"
+            },
+            {
+              "ref": "e41",
+              "role": "row",
+              "name": "Total $64.87"
+            },
+            {
+              "ref": "e42",
+              "role": "cell",
+              "name": "Total"
+            },
+            {
+              "ref": "e43",
+              "role": "strong"
+            },
+            {
+              "ref": "e44",
+              "role": "cell",
+              "name": "$64.87"
+            },
+            {
+              "ref": "e45",
+              "role": "strong"
+            },
+            {
+              "ref": "e46",
+              "role": "paragraph"
+            },
+            {
+              "ref": "e47",
+              "role": "link",
+              "name": "Continue shopping"
+            }
+          ],
+          "pageUrl": "http://localhost:3000/order/O-00001",
+          "pageTitle": "Order O-00001"
+        }
+      ],
+      "observations": [
+        {
+          "label": "Order URL and ID",
+          "observedText": "has been recorded.",
+          "snapshotId": "snapshot-018",
+          "ref": "e15"
+        },
+        {
+          "label": "Item 1 row",
+          "observedText": "Desk Lamp $24.99 2 $49.98",
+          "snapshotId": "snapshot-018",
+          "ref": "e24"
+        },
+        {
+          "label": "Item 2 row",
+          "observedText": "Coffee Mug $8.99 1 $8.99",
+          "snapshotId": "snapshot-018",
+          "ref": "e29"
+        },
+        {
+          "label": "Total",
+          "observedText": "$64.87",
+          "snapshotId": "snapshot-018",
+          "ref": "e45"
+        }
+      ]
+    },
+    "checkout-mobile:C1": {
+      "window": [
+        {
+          "snapshotId": "snapshot-015",
+          "kind": "terminal",
+          "digest": "sha256:61cf0f2fcbc3a77c63c75823db316c90dfb40aa1ca4569a7e8c71f9ebaa6abde",
+          "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - generic [ref=e8]:\n        - text: Signed in as\n        - strong [ref=e9]: alice\n      - button \"Log out\" [ref=e11] [cursor=pointer]\n  - main [ref=e12]:\n    - heading \"Checkout\" [level=1] [ref=e13]\n    - paragraph [ref=e14]: Review your order before placing it.\n    - table [ref=e15]:\n      - rowgroup [ref=e16]:\n        - row \"Item Unit Qty Line total\" [ref=e17]:\n          - columnheader \"Item\" [ref=e18]\n          - columnheader \"Unit\" [ref=e19]\n          - columnheader \"Qty\" [ref=e20]\n          - columnheader \"Line total\" [ref=e21]\n      - rowgroup [ref=e22]:\n        - row \"Desk Lamp $24.99 2 $49.98\" [ref=e23]:\n          - cell \"Desk Lamp\" [ref=e24]\n          - cell \"$24.99\" [ref=e25]\n          - cell \"2\" [ref=e26]\n          - cell \"$49.98\" [ref=e27]\n        - row \"Coffee Mug $8.99 1 $8.99\" [ref=e28]:\n          - cell \"Coffee Mug\" [ref=e29]\n          - cell \"$8.99\" [ref=e30]\n          - cell \"1\" [ref=e31]\n          - cell \"$8.99\" [ref=e32]\n      - rowgroup [ref=e33]:\n        - row \"Subtotal $58.97\" [ref=e34]:\n          - cell \"Subtotal\" [ref=e35]\n          - cell \"$58.97\" [ref=e36]\n        - row \"Tax $5.90\" [ref=e37]:\n          - cell \"Tax\" [ref=e38]\n          - cell \"$5.90\" [ref=e39]\n        - row \"Total $64.87\" [ref=e40]:\n          - cell \"Total\" [ref=e41]:\n            - strong [ref=e42]: Total\n          - cell \"$64.87\" [ref=e43]:\n            - strong [ref=e44]: $64.87\n    - button \"Place Order\" [ref=e47] [cursor=pointer]\n    - paragraph [ref=e48]:\n      - link \"← Back to cart\" [ref=e49] [cursor=pointer]:\n        - /url: /cart",
+          "refs": [
+            "e1",
+            "e2",
+            "e3",
+            "e4",
+            "e5",
+            "e6",
+            "e7",
+            "e8",
+            "e9",
+            "e11",
+            "e12",
+            "e13",
+            "e14",
+            "e15",
+            "e16",
+            "e17",
+            "e18",
+            "e19",
+            "e20",
+            "e21",
+            "e22",
+            "e23",
+            "e24",
+            "e25",
+            "e26",
+            "e27",
+            "e28",
+            "e29",
+            "e30",
+            "e31",
+            "e32",
+            "e33",
+            "e34",
+            "e35",
+            "e36",
+            "e37",
+            "e38",
+            "e39",
+            "e40",
+            "e41",
+            "e42",
+            "e43",
+            "e44",
+            "e47",
+            "e48",
+            "e49"
+          ],
+          "elements": [
+            {
+              "ref": "e1",
+              "role": "generic"
+            },
+            {
+              "ref": "e2",
+              "role": "banner"
+            },
+            {
+              "ref": "e3",
+              "role": "link",
+              "name": "ProofLoop SUT"
+            },
+            {
+              "ref": "e4",
+              "role": "navigation"
+            },
+            {
+              "ref": "e5",
+              "role": "link",
+              "name": "Products"
+            },
+            {
+              "ref": "e6",
+              "role": "link",
+              "name": "Cart"
+            },
+            {
+              "ref": "e7",
+              "role": "link",
+              "name": "Form"
+            },
+            {
+              "ref": "e8",
+              "role": "generic"
+            },
+            {
+              "ref": "e9",
+              "role": "strong"
+            },
+            {
+              "ref": "e11",
+              "role": "button",
+              "name": "Log out"
+            },
+            {
+              "ref": "e12",
+              "role": "main"
+            },
+            {
+              "ref": "e13",
+              "role": "heading",
+              "name": "Checkout"
+            },
+            {
+              "ref": "e14",
+              "role": "paragraph"
+            },
+            {
+              "ref": "e15",
+              "role": "table"
+            },
+            {
+              "ref": "e16",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e17",
+              "role": "row",
+              "name": "Item Unit Qty Line total"
+            },
+            {
+              "ref": "e18",
+              "role": "columnheader",
+              "name": "Item"
+            },
+            {
+              "ref": "e19",
+              "role": "columnheader",
+              "name": "Unit"
+            },
+            {
+              "ref": "e20",
+              "role": "columnheader",
+              "name": "Qty"
+            },
+            {
+              "ref": "e21",
+              "role": "columnheader",
+              "name": "Line total"
+            },
+            {
+              "ref": "e22",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e23",
+              "role": "row",
+              "name": "Desk Lamp $24.99 2 $49.98"
+            },
+            {
+              "ref": "e24",
+              "role": "cell",
+              "name": "Desk Lamp"
+            },
+            {
+              "ref": "e25",
+              "role": "cell",
+              "name": "$24.99"
+            },
+            {
+              "ref": "e26",
+              "role": "cell",
+              "name": "2"
+            },
+            {
+              "ref": "e27",
+              "role": "cell",
+              "name": "$49.98"
+            },
+            {
+              "ref": "e28",
+              "role": "row",
+              "name": "Coffee Mug $8.99 1 $8.99"
+            },
+            {
+              "ref": "e29",
+              "role": "cell",
+              "name": "Coffee Mug"
+            },
+            {
+              "ref": "e30",
+              "role": "cell",
+              "name": "$8.99"
+            },
+            {
+              "ref": "e31",
+              "role": "cell",
+              "name": "1"
+            },
+            {
+              "ref": "e32",
+              "role": "cell",
+              "name": "$8.99"
+            },
+            {
+              "ref": "e33",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e34",
+              "role": "row",
+              "name": "Subtotal $58.97"
+            },
+            {
+              "ref": "e35",
+              "role": "cell",
+              "name": "Subtotal"
+            },
+            {
+              "ref": "e36",
+              "role": "cell",
+              "name": "$58.97"
+            },
+            {
+              "ref": "e37",
+              "role": "row",
+              "name": "Tax $5.90"
+            },
+            {
+              "ref": "e38",
+              "role": "cell",
+              "name": "Tax"
+            },
+            {
+              "ref": "e39",
+              "role": "cell",
+              "name": "$5.90"
+            },
+            {
+              "ref": "e40",
+              "role": "row",
+              "name": "Total $64.87"
+            },
+            {
+              "ref": "e41",
+              "role": "cell",
+              "name": "Total"
+            },
+            {
+              "ref": "e42",
+              "role": "strong"
+            },
+            {
+              "ref": "e43",
+              "role": "cell",
+              "name": "$64.87"
+            },
+            {
+              "ref": "e44",
+              "role": "strong"
+            },
+            {
+              "ref": "e47",
+              "role": "button",
+              "name": "Place Order"
+            },
+            {
+              "ref": "e48",
+              "role": "paragraph"
+            },
+            {
+              "ref": "e49",
+              "role": "link",
+              "name": "← Back to cart"
+            }
+          ],
+          "pageUrl": "http://localhost:3000/checkout?",
+          "pageTitle": "Checkout"
+        },
+        {
+          "snapshotId": "snapshot-018",
+          "kind": "terminal",
+          "digest": "sha256:91936560eaec87cb681589010a0e2f61f8e8b08f16f20df3638f05e31cd0e65f",
+          "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - generic [ref=e8]:\n        - text: Signed in as\n        - strong [ref=e9]: alice\n      - button \"Log out\" [ref=e11] [cursor=pointer]\n  - main [ref=e12]:\n    - heading \"Order placed\" [level=1] [ref=e13]\n    - paragraph [ref=e14]:\n      - text: Thank you. Your order\n      - strong [ref=e15]: O-00002\n      - text: has been recorded.\n    - table [ref=e16]:\n      - rowgroup [ref=e17]:\n        - row \"Item Unit Qty Line total\" [ref=e18]:\n          - columnheader \"Item\" [ref=e19]\n          - columnheader \"Unit\" [ref=e20]\n          - columnheader \"Qty\" [ref=e21]\n          - columnheader \"Line total\" [ref=e22]\n      - rowgroup [ref=e23]:\n        - row \"Desk Lamp $24.99 2 $49.98\" [ref=e24]:\n          - cell \"Desk Lamp\" [ref=e25]\n          - cell \"$24.99\" [ref=e26]\n          - cell \"2\" [ref=e27]\n          - cell \"$49.98\" [ref=e28]\n        - row \"Coffee Mug $8.99 1 $8.99\" [ref=e29]:\n          - cell \"Coffee Mug\" [ref=e30]\n          - cell \"$8.99\" [ref=e31]\n          - cell \"1\" [ref=e32]\n          - cell \"$8.99\" [ref=e33]\n      - rowgroup [ref=e34]:\n        - row \"Subtotal $58.97\" [ref=e35]:\n          - cell \"Subtotal\" [ref=e36]\n          - cell \"$58.97\" [ref=e37]\n        - row \"Tax $5.90\" [ref=e38]:\n          - cell \"Tax\" [ref=e39]\n          - cell \"$5.90\" [ref=e40]\n        - row \"Total $64.87\" [ref=e41]:\n          - cell \"Total\" [ref=e42]:\n            - strong [ref=e43]: Total\n          - cell \"$64.87\" [ref=e44]:\n            - strong [ref=e45]: $64.87\n    - paragraph [ref=e46]:\n      - link \"Continue shopping\" [ref=e47] [cursor=pointer]:\n        - /url: /products",
+          "refs": [
+            "e1",
+            "e2",
+            "e3",
+            "e4",
+            "e5",
+            "e6",
+            "e7",
+            "e8",
+            "e9",
+            "e11",
+            "e12",
+            "e13",
+            "e14",
+            "e15",
+            "e16",
+            "e17",
+            "e18",
+            "e19",
+            "e20",
+            "e21",
+            "e22",
+            "e23",
+            "e24",
+            "e25",
+            "e26",
+            "e27",
+            "e28",
+            "e29",
+            "e30",
+            "e31",
+            "e32",
+            "e33",
+            "e34",
+            "e35",
+            "e36",
+            "e37",
+            "e38",
+            "e39",
+            "e40",
+            "e41",
+            "e42",
+            "e43",
+            "e44",
+            "e45",
+            "e46",
+            "e47"
+          ],
+          "elements": [
+            {
+              "ref": "e1",
+              "role": "generic"
+            },
+            {
+              "ref": "e2",
+              "role": "banner"
+            },
+            {
+              "ref": "e3",
+              "role": "link",
+              "name": "ProofLoop SUT"
+            },
+            {
+              "ref": "e4",
+              "role": "navigation"
+            },
+            {
+              "ref": "e5",
+              "role": "link",
+              "name": "Products"
+            },
+            {
+              "ref": "e6",
+              "role": "link",
+              "name": "Cart"
+            },
+            {
+              "ref": "e7",
+              "role": "link",
+              "name": "Form"
+            },
+            {
+              "ref": "e8",
+              "role": "generic"
+            },
+            {
+              "ref": "e9",
+              "role": "strong"
+            },
+            {
+              "ref": "e11",
+              "role": "button",
+              "name": "Log out"
+            },
+            {
+              "ref": "e12",
+              "role": "main"
+            },
+            {
+              "ref": "e13",
+              "role": "heading",
+              "name": "Order placed"
+            },
+            {
+              "ref": "e14",
+              "role": "paragraph"
+            },
+            {
+              "ref": "e15",
+              "role": "strong"
+            },
+            {
+              "ref": "e16",
+              "role": "table"
+            },
+            {
+              "ref": "e17",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e18",
+              "role": "row",
+              "name": "Item Unit Qty Line total"
+            },
+            {
+              "ref": "e19",
+              "role": "columnheader",
+              "name": "Item"
+            },
+            {
+              "ref": "e20",
+              "role": "columnheader",
+              "name": "Unit"
+            },
+            {
+              "ref": "e21",
+              "role": "columnheader",
+              "name": "Qty"
+            },
+            {
+              "ref": "e22",
+              "role": "columnheader",
+              "name": "Line total"
+            },
+            {
+              "ref": "e23",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e24",
+              "role": "row",
+              "name": "Desk Lamp $24.99 2 $49.98"
+            },
+            {
+              "ref": "e25",
+              "role": "cell",
+              "name": "Desk Lamp"
+            },
+            {
+              "ref": "e26",
+              "role": "cell",
+              "name": "$24.99"
+            },
+            {
+              "ref": "e27",
+              "role": "cell",
+              "name": "2"
+            },
+            {
+              "ref": "e28",
+              "role": "cell",
+              "name": "$49.98"
+            },
+            {
+              "ref": "e29",
+              "role": "row",
+              "name": "Coffee Mug $8.99 1 $8.99"
+            },
+            {
+              "ref": "e30",
+              "role": "cell",
+              "name": "Coffee Mug"
+            },
+            {
+              "ref": "e31",
+              "role": "cell",
+              "name": "$8.99"
+            },
+            {
+              "ref": "e32",
+              "role": "cell",
+              "name": "1"
+            },
+            {
+              "ref": "e33",
+              "role": "cell",
+              "name": "$8.99"
+            },
+            {
+              "ref": "e34",
+              "role": "rowgroup"
+            },
+            {
+              "ref": "e35",
+              "role": "row",
+              "name": "Subtotal $58.97"
+            },
+            {
+              "ref": "e36",
+              "role": "cell",
+              "name": "Subtotal"
+            },
+            {
+              "ref": "e37",
+              "role": "cell",
+              "name": "$58.97"
+            },
+            {
+              "ref": "e38",
+              "role": "row",
+              "name": "Tax $5.90"
+            },
+            {
+              "ref": "e39",
+              "role": "cell",
+              "name": "Tax"
+            },
+            {
+              "ref": "e40",
+              "role": "cell",
+              "name": "$5.90"
+            },
+            {
+              "ref": "e41",
+              "role": "row",
+              "name": "Total $64.87"
+            },
+            {
+              "ref": "e42",
+              "role": "cell",
+              "name": "Total"
+            },
+            {
+              "ref": "e43",
+              "role": "strong"
+            },
+            {
+              "ref": "e44",
+              "role": "cell",
+              "name": "$64.87"
+            },
+            {
+              "ref": "e45",
+              "role": "strong"
+            },
+            {
+              "ref": "e46",
+              "role": "paragraph"
+            },
+            {
+              "ref": "e47",
+              "role": "link",
+              "name": "Continue shopping"
+            }
+          ],
+          "pageUrl": "http://localhost:3000/order/O-00002",
+          "pageTitle": "Order O-00002"
+        }
+      ],
+      "observations": [
+        {
+          "label": "Place Order button present",
+          "observedText": "button \"Place Order\" [ref=e47] [cursor=pointer]",
+          "snapshotId": "snapshot-015",
+          "ref": "e47"
+        },
+        {
+          "label": "Order confirmation heading",
+          "observedText": "heading \"Order placed\" [level=1] [ref=e13]",
+          "snapshotId": "snapshot-018",
+          "ref": "e13"
+        },
+        {
+          "label": "Order confirmation URL/page",
+          "observedText": "page \"Order O-00002\", url http://localhost:3000/order/O-00002",
+          "snapshotId": "snapshot-018",
+          "ref": "e1"
+        },
+        {
+          "label": "Order ID recorded",
+          "observedText": "Thank you. Your order",
+          "snapshotId": "snapshot-018",
+          "ref": "e14"
+        },
+        {
+          "label": "Order number",
+          "observedText": "O-00002",
+          "snapshotId": "snapshot-018",
+          "ref": "e15"
+        }
+      ]
+    },
+    "form:C1": {
+      "window": [
+        {
+          "snapshotId": "snapshot-006",
+          "kind": "terminal",
+          "digest": "sha256:68f2c7570f92b23453dd9f5ae6692dc6ee1ba9f020545cb61e1e313be3ac1ee5",
+          "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - link \"Log in\" [ref=e8] [cursor=pointer]:\n        - /url: /login\n  - main [ref=e9]:\n    - heading \"Submit a request\" [level=1] [ref=e10]\n    - status [ref=e11]:\n      - text: Request received for\n      - strong [ref=e12]: Jana\n      - text: (jana@example.com) — amount 25.\n    - generic [ref=e13]:\n      - generic [ref=e14]:\n        - text: Name\n        - textbox \"Name\" [ref=e15]: Jana\n      - generic [ref=e16]:\n        - text: Email\n        - textbox \"Email\" [ref=e17]: jana@example.com\n      - generic [ref=e18]:\n        - text: Amount\n        - textbox \"Amount\" [ref=e19]: \"25\"\n      - button \"Submit\" [ref=e20] [cursor=pointer]",
+          "refs": [
+            "e1",
+            "e2",
+            "e3",
+            "e4",
+            "e5",
+            "e6",
+            "e7",
+            "e8",
+            "e9",
+            "e10",
+            "e11",
+            "e12",
+            "e13",
+            "e14",
+            "e15",
+            "e16",
+            "e17",
+            "e18",
+            "e19",
+            "e20"
+          ],
+          "elements": [
+            {
+              "ref": "e1",
+              "role": "generic"
+            },
+            {
+              "ref": "e2",
+              "role": "banner"
+            },
+            {
+              "ref": "e3",
+              "role": "link",
+              "name": "ProofLoop SUT"
+            },
+            {
+              "ref": "e4",
+              "role": "navigation"
+            },
+            {
+              "ref": "e5",
+              "role": "link",
+              "name": "Products"
+            },
+            {
+              "ref": "e6",
+              "role": "link",
+              "name": "Cart"
+            },
+            {
+              "ref": "e7",
+              "role": "link",
+              "name": "Form"
+            },
+            {
+              "ref": "e8",
+              "role": "link",
+              "name": "Log in"
+            },
+            {
+              "ref": "e9",
+              "role": "main"
+            },
+            {
+              "ref": "e10",
+              "role": "heading",
+              "name": "Submit a request"
+            },
+            {
+              "ref": "e11",
+              "role": "status"
+            },
+            {
+              "ref": "e12",
+              "role": "strong"
+            },
+            {
+              "ref": "e13",
+              "role": "generic"
+            },
+            {
+              "ref": "e14",
+              "role": "generic"
+            },
+            {
+              "ref": "e15",
+              "role": "textbox",
+              "name": "Name"
+            },
+            {
+              "ref": "e16",
+              "role": "generic"
+            },
+            {
+              "ref": "e17",
+              "role": "textbox",
+              "name": "Email"
+            },
+            {
+              "ref": "e18",
+              "role": "generic"
+            },
+            {
+              "ref": "e19",
+              "role": "textbox",
+              "name": "Amount"
+            },
+            {
+              "ref": "e20",
+              "role": "button",
+              "name": "Submit"
+            }
+          ],
+          "pageUrl": "http://localhost:3000/form",
+          "pageTitle": "Validated form"
+        }
+      ],
+      "observations": [
+        {
+          "label": "confirmation status message",
+          "observedText": "Request received for",
+          "snapshotId": "snapshot-006",
+          "ref": "e11"
+        },
+        {
+          "label": "name in confirmation",
+          "observedText": "Jana",
+          "snapshotId": "snapshot-006",
+          "ref": "e12"
+        },
+        {
+          "label": "email and amount detail",
+          "observedText": "(jana@example.com) — amount 25.",
+          "snapshotId": "snapshot-006",
+          "ref": "e11"
+        },
+        {
+          "label": "name field value",
+          "observedText": "Jana",
+          "snapshotId": "snapshot-006",
+          "ref": "e15"
+        },
+        {
+          "label": "email field value",
+          "observedText": "jana@example.com",
+          "snapshotId": "snapshot-006",
+          "ref": "e17"
+        },
+        {
+          "label": "amount field value",
+          "observedText": "25",
+          "snapshotId": "snapshot-006",
+          "ref": "e19"
+        }
+      ]
+    },
+    "form:C2": {
+      "window": [
+        {
+          "snapshotId": "snapshot-012",
+          "kind": "terminal",
+          "digest": "sha256:a2bf564fb999a3b648ceeeac681ee76941d496c9f3602248e9a9429b33fa3640",
+          "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - link \"Log in\" [ref=e8] [cursor=pointer]:\n        - /url: /login\n  - main [ref=e9]:\n    - heading \"Submit a request\" [level=1] [ref=e10]\n    - generic [ref=e11]:\n      - generic [ref=e12]:\n        - text: Name\n        - textbox \"Name\" [ref=e13]: Jana\n      - generic [ref=e14]:\n        - text: Email\n        - textbox \"Email\" [ref=e15]: jana@example.com\n      - generic [ref=e16]:\n        - text: Amount\n        - textbox \"Amount Amount must be a positive whole number.\" [ref=e17]: \"-5\"\n        - generic [ref=e18]: Amount must be a positive whole number.\n      - button \"Submit\" [ref=e19] [cursor=pointer]",
+          "refs": [
+            "e1",
+            "e2",
+            "e3",
+            "e4",
+            "e5",
+            "e6",
+            "e7",
+            "e8",
+            "e9",
+            "e10",
+            "e11",
+            "e12",
+            "e13",
+            "e14",
+            "e15",
+            "e16",
+            "e17",
+            "e18",
+            "e19"
+          ],
+          "elements": [
+            {
+              "ref": "e1",
+              "role": "generic"
+            },
+            {
+              "ref": "e2",
+              "role": "banner"
+            },
+            {
+              "ref": "e3",
+              "role": "link",
+              "name": "ProofLoop SUT"
+            },
+            {
+              "ref": "e4",
+              "role": "navigation"
+            },
+            {
+              "ref": "e5",
+              "role": "link",
+              "name": "Products"
+            },
+            {
+              "ref": "e6",
+              "role": "link",
+              "name": "Cart"
+            },
+            {
+              "ref": "e7",
+              "role": "link",
+              "name": "Form"
+            },
+            {
+              "ref": "e8",
+              "role": "link",
+              "name": "Log in"
+            },
+            {
+              "ref": "e9",
+              "role": "main"
+            },
+            {
+              "ref": "e10",
+              "role": "heading",
+              "name": "Submit a request"
+            },
+            {
+              "ref": "e11",
+              "role": "generic"
+            },
+            {
+              "ref": "e12",
+              "role": "generic"
+            },
+            {
+              "ref": "e13",
+              "role": "textbox",
+              "name": "Name"
+            },
+            {
+              "ref": "e14",
+              "role": "generic"
+            },
+            {
+              "ref": "e15",
+              "role": "textbox",
+              "name": "Email"
+            },
+            {
+              "ref": "e16",
+              "role": "generic"
+            },
+            {
+              "ref": "e17",
+              "role": "textbox",
+              "name": "Amount Amount must be a positive whole number."
+            },
+            {
+              "ref": "e18",
+              "role": "generic"
+            },
+            {
+              "ref": "e19",
+              "role": "button",
+              "name": "Submit"
+            }
+          ],
+          "pageUrl": "http://localhost:3000/form",
+          "pageTitle": "Validated form"
+        }
+      ],
+      "observations": [
+        {
+          "label": "amount field with -5 and error",
+          "observedText": "textbox \"Amount Amount must be a positive whole number.\" [ref=e17]: \"-5\"",
+          "snapshotId": "snapshot-012",
+          "ref": "e17"
+        },
+        {
+          "label": "validation error message",
+          "observedText": "Amount must be a positive whole number.",
+          "snapshotId": "snapshot-012",
+          "ref": "e18"
+        },
+        {
+          "label": "name valid",
+          "observedText": "textbox \"Name\" [ref=e13]: Jana",
+          "snapshotId": "snapshot-012",
+          "ref": "e13"
+        },
+        {
+          "label": "email valid",
+          "observedText": "textbox \"Email\" [ref=e15]: jana@example.com",
+          "snapshotId": "snapshot-012",
+          "ref": "e15"
+        }
+      ]
+    }
+  }
+}
