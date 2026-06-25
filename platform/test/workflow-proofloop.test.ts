@@ -5,6 +5,9 @@
  * environment-partition rules (§8). They do NOT (and cannot) prove the GitHub-runner integration
  * seams — process lifecycle, repo-root resolution on the runner, real install/health behavior —
  * which are explicitly verified at the live-CI human gate (§8/§9).
+ *
+ * gate/task5-clean-pr: a harmless comment-only touch under platform/** to exercise the
+ * pull_request path filter for the G3 clean-PR live validation. BRANCH-ONLY — never merged.
  */
 
 import test from "node:test";
