@@ -1,9 +1,9 @@
 name: ProofLoop
 
-# Phase 6, Task 4 — workflow_dispatch ONLY. The path-filtered `pull_request` trigger is
-# added in Task 5, AFTER the live-CI human gate. PR-event-only steps (fork guard, sticky
-# comment) are present here but guarded by `github.event_name == 'pull_request'`, so they
-# are inert under dispatch. The privileged PR-target trigger variant is forbidden (D44).
+# Phase 6 — path-filtered same-repository `pull_request` + manual `workflow_dispatch` (Task 5).
+# Fork PRs get the comment-less safe path (D45); PR-event-only steps (fork guard, sticky comment)
+# are guarded by `github.event_name == 'pull_request'` and stay inert under dispatch. The
+# privileged PR-target trigger variant is forbidden (D44); ProofLoop is NOT a required check (D47).
 on:
   workflow_dispatch:
     inputs:
@@ -11,6 +11,12 @@ on:
         description: "SUT bug toggles (comma-separated). SUT boot ONLY; empty = clean app."
         required: false
         default: ""
+  pull_request:
+    paths:
+      - "app/**"
+      - "platform/**"
+      - "fixtures/flows/**"
+      - ".github/workflows/proofloop.yml"
 
 # Minimal permissions (D44). No privileged PR-target trigger, ever.
 permissions:

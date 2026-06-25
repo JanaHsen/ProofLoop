@@ -58,9 +58,9 @@ function executableSurface(s: Step): string {
 
 // ── triggers / permissions / concurrency ───────────────────────────────────────────────────
 
-test("triggers: workflow_dispatch ONLY — no pull_request (Task 5 adds it)", () => {
+test("triggers: workflow_dispatch + pull_request are wired (Task 5)", () => {
   assert.ok(ON.workflow_dispatch !== undefined, "workflow_dispatch present");
-  assert.ok(ON.pull_request === undefined, "pull_request must NOT be wired in Task 4");
+  assert.ok(ON.pull_request !== undefined, "pull_request present (Task 5)");
 });
 
 test("pull_request_target is forbidden anywhere in the workflow", () => {
@@ -243,8 +243,52 @@ test("req1: the workflow parses to an object exposing jobs.proofloop", () => {
 });
 
 // req 2 — workflow_dispatch is the ONLY trigger (rejects push/schedule/pull_request[_target]/…)
-test("req2: workflow_dispatch is the ONLY trigger key", () => {
-  assert.deepEqual(Object.keys(ON).sort(), ["workflow_dispatch"], "no push/schedule/pull_request(_target)/other trigger");
+test("req2: triggers are EXACTLY workflow_dispatch + pull_request (no push/schedule/target)", () => {
+  assert.deepEqual(Object.keys(ON).sort(), ["pull_request", "workflow_dispatch"], "no push/schedule/pull_request_target/other trigger");
+  assert.equal(ON.push, undefined, "no push trigger");
+  assert.equal(ON.schedule, undefined, "no schedule trigger");
+  assert.equal(ON.pull_request_target, undefined, "no pull_request_target trigger");
+});
+
+// ── Task 5: pull_request trigger, path filters, fork authorization ───────────────────────────
+
+const PR_PATHS = ["app/**", "platform/**", "fixtures/flows/**", ".github/workflows/proofloop.yml"];
+
+/** Minimal GitHub-Actions path-filter match: `X/**` matches anything under `X/`; otherwise exact. */
+function matchesPrPaths(changedPath: string): boolean {
+  return PR_PATHS.some((g) =>
+    g.endsWith("/**") ? changedPath.startsWith(g.slice(0, -2)) : changedPath === g,
+  );
+}
+
+test("Task 5: pull_request carries EXACTLY the approved path filters and keeps workflow_dispatch", () => {
+  assert.deepEqual((ON.pull_request as any).paths, PR_PATHS, "exact path filters");
+  assert.ok(ON.workflow_dispatch !== undefined, "manual dispatch is preserved");
+  assert.ok((ON.workflow_dispatch as any).inputs?.bugs !== undefined, "the dispatch bugs input is preserved");
+});
+
+test("Task 5: code-path changes match the filters; docs-only changes do NOT trigger", () => {
+  // code paths trigger
+  for (const p of ["app/src/server.ts", "platform/src/run-cli.ts", "fixtures/flows/login.flow.md", ".github/workflows/proofloop.yml"]) {
+    assert.ok(matchesPrPaths(p), `${p} should trigger`);
+  }
+  // docs-only / out-of-scope paths do NOT trigger
+  for (const p of ["README.md", "phases/06-cicd-integration.md", "platform/test/x.test.ts".replace("platform/", "docs/"), "LICENSE", ".gitignore"]) {
+    assert.ok(!matchesPrPaths(p), `${p} should NOT trigger`);
+  }
+});
+
+test("Task 5: fork PRs are unauthorized + spend-free; same-repo PRs are authorized", () => {
+  const authRun = String(DOC.jobs.authorize.steps[0].run ?? "");
+  // fork detection: pull_request whose head repo != this repo → authorized=false
+  assert.match(authRun, /github\.event_name.*pull_request/);
+  assert.match(authRun, /head\.repo\.full_name.*!=.*github\.repository/);
+  assert.match(authRun, /authorized=false/);
+  assert.match(authRun, /authorized=true/, "the else branch authorizes same-repo PRs / dispatch");
+  // the spending pipeline only runs when authorized — so a fork PR spends nothing
+  assert.match(String(MAIN.if), /needs\.authorize\.outputs\.authorized == 'true'/);
+  // the fork-notice job covers the unauthorized case with no install/spend
+  assert.match(String(DOC.jobs["fork-notice"].if), /authorized != 'true'/);
 });
 
 // req 6 — only official, version-pinned actions
