@@ -910,6 +910,29 @@ a residual genuine mis-citation the guard correctly keeps invalid — candidates
 later verifier-prompt clarification, which is **not** required for correctness. A second clean
 dispatch to confirm green end-to-end requires separate human authorization.
 
+#### Accepted live-CI gates (run record)
+
+All Phase 6 Task 4 live gates passed and are accepted. The runs, in order:
+
+1. **First (diagnostic) clean run** — [run 27985544723](https://github.com/JanaHsen/ProofLoop/actions/runs/27985544723):
+   **2 PASS, 3 INCONCLUSIVE**. Surfaced the *citation-surface* defect (above); led to the
+   deterministic fix `ce6fe62` (`fix(verify): validate canonical same-ref citation surfaces`) and
+   the generic prompt clarification `3ee5f9f` (`fix(verify): clarify evidence citation instructions`).
+2. **Post-fix clean rerun** — [run 28090336496](https://github.com/JanaHsen/ProofLoop/actions/runs/28090336496):
+   **all five flows PASS, `allPass: true`**. Clean live gate **accepted**.
+3. **BUG-002 run** — [run 28092952454](https://github.com/JanaHsen/ProofLoop/actions/runs/28092952454):
+   login PASS, **add-to-cart FAIL**, checkout PASS, checkout-mobile PASS, form PASS.
+   `add-to-cart:C2` detected Tax `$0.00` where 10% of Subtotal `$58.97` rounds to `$5.90`. The red
+   result is **accepted** as correct behavioral-regression detection (FAIL distinguished from
+   "could not clear").
+4. **Synthetic corruption run** — [run 28171606181](https://github.com/JanaHsen/ProofLoop/actions/runs/28171606181):
+   a **zero-model, branch-only** gate (input `gate_mode=corruption_synthetic`). Aggregation rejected
+   the intentional source mismatch —
+   `source.runId ("synthetic-run-2-MISMATCH") !== expected runId ("synthetic-run-2")` — **inferred no
+   verdict**, published the harness fallback, and finished **red** via final enforcement. Accepted as
+   correct evidence-integrity enforcement. The branch-only commit `3e24caf` was **not** merged
+   (the `gate/synthetic-corruption` branch is deleted; `main` is unaffected).
+
 Do not self-certify. Do not wire `pull_request` before approval.
 
 ---
@@ -987,7 +1010,9 @@ Do not self-certify. Do not wire `pull_request` before approval.
   `pull_request_target`.
 * [x] 🚦 CLI-contract gate passed (Task-0 findings reviewed; D38/D39 contract frozen
   before Task 1).
-* [ ] 🚦 Live-CI gate passed on a clean dispatch and a seeded-bug dispatch.
+* [x] 🚦 Live-CI gate passed on a clean dispatch and a seeded-bug dispatch (clean rerun
+  28090336496 all-PASS; BUG-002 28092952454 add-to-cart FAIL; synthetic corruption 28171606181
+  evidence-integrity red — see the "Accepted live-CI gates" run record above).
 * [ ] `pull_request` trigger added with path filters; sticky comment upserts (one
   comment, updated in place); docs-only PR does not trigger.
 * [ ] README documents triggers, the single secret, the demo, branch-protection
