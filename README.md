@@ -263,26 +263,42 @@ reports/
 
 ## CI Execution
 
-The GitHub Actions workflow can be started manually from:
+ProofLoop runs its configured five-flow suite through GitHub Actions in two ways:
 
-```text
-Actions → ProofLoop → Run workflow
-```
+* **Automatically** on a **same-repository** pull request that changes a watched path —
+  `app/**`, `platform/**`, `fixtures/flows/**`, or `.github/workflows/proofloop.yml`. A pull
+  request that touches only other paths (for example documentation) does **not** trigger a run.
+* **Manually** at any time from `Actions → ProofLoop → Run workflow`.
 
-The optional `bugs` input controls which seeded defects are enabled in the demonstration application. Leaving it empty runs the suite against the clean application.
+On a pull request the outcome is posted as a single sticky comment that is updated in place on
+re-runs, and the job is red unless every flow is cleared.
 
-The workflow uploads:
+### Secrets and the System Under Test
 
-* `proofloop-runs`;
-* `proofloop-ci-summary`.
+* `ANTHROPIC_API_KEY` is the **only** repository Actions secret ProofLoop requires.
+* `SESSION_SECRET` for the System Under Test is **generated ephemerally per run** — it is never
+  stored as a secret and never committed.
 
-The final job succeeds only when the generated CI summary reports:
+### Seeded-bug demonstration
 
-```json
-{
-  "allPass": true
-}
-```
+To watch ProofLoop detect a real behavioural defect, start a manual run and set the optional
+`bugs` input to a seeded defect toggle (for example `BUG-002`). The toggle is applied to the
+System Under Test only; an empty value runs the suite against the clean application. A seeded run
+turns the job red on the affected acceptance criterion.
+
+The workflow uploads two artifact bundles, `proofloop-runs` and `proofloop-ci-summary`, and the
+final job succeeds only when the generated CI summary reports `{"allPass": true}`.
+
+### Limitations and scope
+
+* CI runs on **same-repository** pull requests only. Fork pull requests are skipped (secrets are
+  withheld and the token is read-only) with a notice and no comment.
+* A single CI run is a **clean-app gate, not a reliability measurement** — treat one green run as
+  "this change cleared once", not as a guaranteed pass rate.
+* Accuracy against the seeded bug ledger is evaluated in **Phase 7**; repeated-run reliability and
+  verdict variance are **Phase 8**; richer trace/video evidence is **Phase 9**.
+* ProofLoop is **not** intended to be a required branch-protection merge check. Enforcement is the
+  visible red/green check, the sticky comment, and a human merge decision.
 
 ## Design Principles
 
