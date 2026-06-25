@@ -1,0 +1,282 @@
+{
+  "provenance": {
+    "source": "G3 same-repository PR validation run 28182045591 (PR #1)",
+    "runId": "login-2026-06-25T15-40-43-647Z-9bd04163",
+    "evaluationId": "eval-001",
+    "criterion": "login:C1",
+    "note": "Verbatim sanitized snapshot-011 (the only snapshot cited by any login:C1 observation) plus the five stored observations. Used for OFFLINE replay through the real finalization path; no model, browser, SUT, or network. The third observation (\"Signed in as\" @ e8) is anonymous ref-less text that is a DIRECT child of the generic container e8 — the case the direct-child surface attributes to its owning ref."
+  },
+  "cases": {
+    "login:C1": {
+      "window": [
+        {
+          "snapshotId": "snapshot-011",
+          "kind": "terminal",
+          "digest": "sha256:6dc27ba88f5e0ce39d05f619651155b6e42a9565dd1bed86d84147e299384bee",
+          "yaml": "- generic [active] [ref=e1]:\n  - banner [ref=e2]:\n    - link \"ProofLoop SUT\" [ref=e3] [cursor=pointer]:\n      - /url: /\n    - navigation [ref=e4]:\n      - link \"Products\" [ref=e5] [cursor=pointer]:\n        - /url: /products\n      - link \"Cart\" [ref=e6] [cursor=pointer]:\n        - /url: /cart\n      - link \"Form\" [ref=e7] [cursor=pointer]:\n        - /url: /form\n      - generic [ref=e8]:\n        - text: Signed in as\n        - strong [ref=e9]: alice\n      - button \"Log out\" [ref=e11] [cursor=pointer]\n  - main [ref=e12]:\n    - heading \"Products\" [level=1] [ref=e13]\n    - list [ref=e14]:\n      - listitem [ref=e15]:\n        - link \"Notebook\" [ref=e16] [cursor=pointer]:\n          - /url: /products/p-001\n        - generic [ref=e17]: $4.99\n        - generic [ref=e18]:\n          - generic [ref=e19]:\n            - text: Qty\n            - spinbutton \"Qty\" [ref=e20]: \"1\"\n          - button \"Add to Cart\" [ref=e21] [cursor=pointer]\n      - listitem [ref=e22]:\n        - link \"Mechanical Pencil\" [ref=e23] [cursor=pointer]:\n          - /url: /products/p-002\n        - generic [ref=e24]: $12.99\n        - generic [ref=e25]:\n          - generic [ref=e26]:\n            - text: Qty\n            - spinbutton \"Qty\" [ref=e27]: \"1\"\n          - button \"Add to Cart\" [ref=e28] [cursor=pointer]\n      - listitem [ref=e29]:\n        - link \"Desk Lamp\" [ref=e30] [cursor=pointer]:\n          - /url: /products/p-003\n        - generic [ref=e31]: $24.99\n        - generic [ref=e32]:\n          - generic [ref=e33]:\n            - text: Qty\n            - spinbutton \"Qty\" [ref=e34]: \"1\"\n          - button \"Add to Cart\" [ref=e35] [cursor=pointer]\n      - listitem [ref=e36]:\n        - link \"Coffee Mug\" [ref=e37] [cursor=pointer]:\n          - /url: /products/p-004\n        - generic [ref=e38]: $8.99\n        - generic [ref=e39]:\n          - generic [ref=e40]:\n            - text: Qty\n            - spinbutton \"Qty\" [ref=e41]: \"1\"\n          - button \"Add to Cart\" [ref=e42] [cursor=pointer]",
+          "refs": [
+            "e1",
+            "e2",
+            "e3",
+            "e4",
+            "e5",
+            "e6",
+            "e7",
+            "e8",
+            "e9",
+            "e11",
+            "e12",
+            "e13",
+            "e14",
+            "e15",
+            "e16",
+            "e17",
+            "e18",
+            "e19",
+            "e20",
+            "e21",
+            "e22",
+            "e23",
+            "e24",
+            "e25",
+            "e26",
+            "e27",
+            "e28",
+            "e29",
+            "e30",
+            "e31",
+            "e32",
+            "e33",
+            "e34",
+            "e35",
+            "e36",
+            "e37",
+            "e38",
+            "e39",
+            "e40",
+            "e41",
+            "e42"
+          ],
+          "elements": [
+            {
+              "ref": "e1",
+              "role": "generic"
+            },
+            {
+              "ref": "e2",
+              "role": "banner"
+            },
+            {
+              "ref": "e3",
+              "role": "link",
+              "name": "ProofLoop SUT"
+            },
+            {
+              "ref": "e4",
+              "role": "navigation"
+            },
+            {
+              "ref": "e5",
+              "role": "link",
+              "name": "Products"
+            },
+            {
+              "ref": "e6",
+              "role": "link",
+              "name": "Cart"
+            },
+            {
+              "ref": "e7",
+              "role": "link",
+              "name": "Form"
+            },
+            {
+              "ref": "e8",
+              "role": "generic"
+            },
+            {
+              "ref": "e9",
+              "role": "strong"
+            },
+            {
+              "ref": "e11",
+              "role": "button",
+              "name": "Log out"
+            },
+            {
+              "ref": "e12",
+              "role": "main"
+            },
+            {
+              "ref": "e13",
+              "role": "heading",
+              "name": "Products"
+            },
+            {
+              "ref": "e14",
+              "role": "list"
+            },
+            {
+              "ref": "e15",
+              "role": "listitem"
+            },
+            {
+              "ref": "e16",
+              "role": "link",
+              "name": "Notebook"
+            },
+            {
+              "ref": "e17",
+              "role": "generic"
+            },
+            {
+              "ref": "e18",
+              "role": "generic"
+            },
+            {
+              "ref": "e19",
+              "role": "generic"
+            },
+            {
+              "ref": "e20",
+              "role": "spinbutton",
+              "name": "Qty"
+            },
+            {
+              "ref": "e21",
+              "role": "button",
+              "name": "Add to Cart"
+            },
+            {
+              "ref": "e22",
+              "role": "listitem"
+            },
+            {
+              "ref": "e23",
+              "role": "link",
+              "name": "Mechanical Pencil"
+            },
+            {
+              "ref": "e24",
+              "role": "generic"
+            },
+            {
+              "ref": "e25",
+              "role": "generic"
+            },
+            {
+              "ref": "e26",
+              "role": "generic"
+            },
+            {
+              "ref": "e27",
+              "role": "spinbutton",
+              "name": "Qty"
+            },
+            {
+              "ref": "e28",
+              "role": "button",
+              "name": "Add to Cart"
+            },
+            {
+              "ref": "e29",
+              "role": "listitem"
+            },
+            {
+              "ref": "e30",
+              "role": "link",
+              "name": "Desk Lamp"
+            },
+            {
+              "ref": "e31",
+              "role": "generic"
+            },
+            {
+              "ref": "e32",
+              "role": "generic"
+            },
+            {
+              "ref": "e33",
+              "role": "generic"
+            },
+            {
+              "ref": "e34",
+              "role": "spinbutton",
+              "name": "Qty"
+            },
+            {
+              "ref": "e35",
+              "role": "button",
+              "name": "Add to Cart"
+            },
+            {
+              "ref": "e36",
+              "role": "listitem"
+            },
+            {
+              "ref": "e37",
+              "role": "link",
+              "name": "Coffee Mug"
+            },
+            {
+              "ref": "e38",
+              "role": "generic"
+            },
+            {
+              "ref": "e39",
+              "role": "generic"
+            },
+            {
+              "ref": "e40",
+              "role": "generic"
+            },
+            {
+              "ref": "e41",
+              "role": "spinbutton",
+              "name": "Qty"
+            },
+            {
+              "ref": "e42",
+              "role": "button",
+              "name": "Add to Cart"
+            }
+          ],
+          "pageUrl": "http://localhost:3000/products",
+          "pageTitle": "Products"
+        }
+      ],
+      "observations": [
+        {
+          "label": "Terminal page is Products",
+          "observedText": "http://localhost:3000/products",
+          "snapshotId": "snapshot-011",
+          "ref": "e1"
+        },
+        {
+          "label": "Products heading present",
+          "observedText": "Products",
+          "snapshotId": "snapshot-011",
+          "ref": "e13"
+        },
+        {
+          "label": "Signed in indicator",
+          "observedText": "Signed in as",
+          "snapshotId": "snapshot-011",
+          "ref": "e8"
+        },
+        {
+          "label": "Signed in user",
+          "observedText": "alice",
+          "snapshotId": "snapshot-011",
+          "ref": "e9"
+        },
+        {
+          "label": "Product list loaded",
+          "observedText": "Notebook",
+          "snapshotId": "snapshot-011",
+          "ref": "e16"
+        }
+      ]
+    }
+  }
+}

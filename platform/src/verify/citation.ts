@@ -67,11 +67,14 @@ export function citationTextSurface(snap: ProvidedSnapshot, ref: string): string
 // ── Additive SAME-REF surfaces (citation-surface correction) ─────────────────────────────────
 //
 // The base surface above (accessible name + the ref's own inline text) is correct but narrow:
-// it rejected three faithful-but-differently-shaped citations a model legitimately makes against
-// the SAME ref ProofLoop showed it. The three helpers below ADD acceptance for exactly those,
-// each strictly bound to the cited ref. None performs a whole-snapshot, sibling, ancestor, fuzzy,
-// semantic, or token-based search; none hardcodes any application phrase. The invalid-citation
-// guard is unchanged — these only widen what counts as attributable to the *named* ref.
+// it rejected faithful-but-differently-shaped citations a model legitimately makes against the
+// SAME ref ProofLoop showed it. The helpers below ADD acceptance for exactly those, each strictly
+// bound to the cited ref: a canonical decorated line (Mode A); anonymous text inside an approved
+// semantic container (Mode B); page title/URL on the page/root node (Mode C); and anonymous text
+// that is a DIRECT child of the cited ref, for any role (Mode D). None performs a whole-snapshot,
+// sibling, ancestor, fuzzy, semantic, case-insensitive, or token-based search; none hardcodes any
+// application phrase. The invalid-citation guard is unchanged — these only widen what counts as
+// attributable to the *named* ref.
 
 /** Collapse runs of whitespace to single spaces and trim — the only normalization applied. */
 function normalizeWs(s: string): string {
@@ -207,12 +210,63 @@ export function pageMetadataPresent(
 }
 
 /**
- * True iff `observedText` is non-empty and is attributable to THIS ref, by any of the four
+ * The concatenation, in document order, of the anonymous (`- text:`) nodes that are DIRECT
+ * children of `ref` — exactly one indentation level below `ref`'s own line, never deeper. Text
+ * owned by a ref-bearing child, by a grandchild (depth ≥ 2), by a sibling, or by an ancestor is
+ * excluded: the scan never descends past the direct-child indentation level, and never matches a
+ * ref-bearing line. Whitespace-normalized; `undefined` when `ref` has no direct anonymous text
+ * child. The subtree is bounded by indentation (lines strictly more indented than `ref`'s line,
+ * up to the first line that is not); within it, only lines at the shallowest — i.e. direct-child —
+ * indentation are considered.
+ */
+export function directChildAnonymousText(yaml: string, ref: string): string | undefined {
+  const lines = yaml.split(/\r?\n/);
+  const start = lines.findIndex((l) => l.includes(`[ref=${ref}]`));
+  if (start === -1) return undefined;
+  const baseIndent = indentOf(lines[start]);
+  const subtree: string[] = [];
+  for (let j = start + 1; j < lines.length; j += 1) {
+    if (lines[j].trim() === "") continue;
+    if (indentOf(lines[j]) <= baseIndent) break; // left the cited ref's subtree
+    subtree.push(lines[j]);
+  }
+  if (subtree.length === 0) return undefined;
+  const childIndent = Math.min(...subtree.map(indentOf)); // the direct-child indentation level
+  const parts: string[] = [];
+  for (const line of subtree) {
+    if (indentOf(line) !== childIndent) continue; // skip grandchildren / deeper descendants
+    const tm = /^\s*-\s+text:\s*(.*)$/.exec(line); // anonymous (ref-less) text node only
+    if (tm) parts.push(tm[1]);
+  }
+  return parts.length > 0 ? normalizeWs(parts.join(" ")) : undefined;
+}
+
+/**
+ * Mode D — anonymous ref-less text that is a DIRECT (depth-1) child of the cited ref, attributed
+ * to that ref regardless of the ref's role. Unlike Mode B — which searches an approved semantic
+ * container's WHOLE subtree — this descends exactly one level, so it cannot approach a page search:
+ * a plain `generic` wrapper qualifies, but only for text it directly owns. The page/root node is
+ * excluded: its title/URL are Mode C's surface, and a direct-child scan of the root would span the
+ * page's top-level text. Whitespace normalization only — no fuzzy/semantic/case/token matching.
+ */
+export function directChildAnonymousTextPresent(
+  snap: ProvidedSnapshot,
+  ref: string,
+  observedText: string,
+): boolean {
+  if (pageRootRef(snap.yaml) === ref) return false; // page/root excluded from this surface
+  const surface = directChildAnonymousText(snap.yaml, ref);
+  return surface !== undefined && surface.includes(normalizeWs(observedText));
+}
+
+/**
+ * True iff `observedText` is non-empty and is attributable to THIS ref, by any of the five
  * deterministic same-ref surfaces (checked in order; first hit wins):
  *   1. the base surface — accessible name and/or the ref's own inline text (containment);
  *   2. a strictly-parsed canonical decorated line for the SAME ref (name+value match canonical);
  *   3. anonymous descendant text inside an approved semantic container that is the cited ref;
- *   4. page title / URL metadata, only when the cited ref is the page/root node.
+ *   4. anonymous text that is a DIRECT child of the cited ref (any role; page/root excluded);
+ *   5. page title / URL metadata, only when the cited ref is the page/root node.
  * Every surface is bound to the named ref — never a whole-snapshot, sibling, ancestor, fuzzy, or
  * semantic search. Containment (not equality) on the base surface lets "$64.87" ⊆ "Total $64.87".
  */
@@ -225,6 +279,7 @@ export function observedTextPresentAtRef(
   if (citationTextSurface(snap, ref).some((s) => s.includes(observedText))) return true;
   if (matchesCanonicalLine(snap, ref, observedText)) return true;
   if (containerSubtreeTextPresent(snap, ref, observedText)) return true;
+  if (directChildAnonymousTextPresent(snap, ref, observedText)) return true;
   if (pageMetadataPresent(snap, ref, observedText)) return true;
   return false;
 }
