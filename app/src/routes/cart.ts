@@ -42,7 +42,13 @@ export function computeTotals(lines: CartLine[]): { rendered: OrderLine[]; total
   // BUG-002 (shared-logic): drop the tax line — taxCents computes to 0, so the
   // page shows "Tax $0.00" and Total == Subtotal. Lives in the shared total
   // path, so /debug/state reports the same wrong numbers (mirror agrees).
-  const taxCents = bugOn("BUG-002") ? 0 : Math.round(subtotalCents * TAX_RATE);
+  //
+  // BRANCH-ONLY (G4 PR regression — DO NOT MERGE): also force this existing BUG-002 tax-drop
+  // on for an ordinary PR run that passes no workflow_dispatch `bugs` input. It reuses the SAME
+  // shared-logic path (taxCents → 0); it adds no new defect logic. Revert by removing the
+  // `FORCE_BUG_002` constant and the `|| FORCE_BUG_002` term to restore env-toggle-gated behaviour.
+  const FORCE_BUG_002 = true;
+  const taxCents = bugOn("BUG-002") || FORCE_BUG_002 ? 0 : Math.round(subtotalCents * TAX_RATE);
   const totalCents = subtotalCents + taxCents;
   return { rendered, totals: { subtotalCents, taxCents, totalCents } };
 }
