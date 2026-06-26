@@ -5,13 +5,17 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import {
+  auditUrl,
   deriveSutOrigin,
   isAllowedFinalUrl,
+  observedDisplayPath,
   resolveTrustedDestination,
   verifyStoredSnapshotDigest,
   type ObservedSnapshotRecord,
 } from "../src/engine/navigation";
 import { digestSnapshot } from "../src/mcp/snapshot";
+
+const SECRET_URL = "http://localhost:3000/order/O-00001?token=secret-value#private";
 
 const ORIGIN = "http://localhost:3000";
 const RUN = "checkout-run";
@@ -132,6 +136,31 @@ test("isAllowedFinalUrl accepts only a same-origin http(s) final URL", () => {
   assert.equal(isAllowedFinalUrl("javascript:alert(1)", ORIGIN), false);
   assert.equal(isAllowedFinalUrl(undefined, ORIGIN), false);
   assert.equal(isAllowedFinalUrl("", ORIGIN), false);
+});
+
+// ── auditUrl / observedDisplayPath — URL sanitization ────────────────────────────────
+test("auditUrl preserves origin+path, redacts query VALUES to key names, drops fragment & credentials", () => {
+  const a = auditUrl(SECRET_URL);
+  assert.equal(a.safe, "http://localhost:3000/order/O-00001?token");
+  assert.ok(!a.safe.includes("secret-value"), "query value must never appear");
+  assert.ok(!a.safe.includes("private"), "fragment must never appear");
+  assert.ok(a.digest.startsWith("sha256:"));
+  // credentials are stripped (origin excludes userinfo)
+  assert.ok(!auditUrl("http://user:pass@localhost:3000/x?k=v").safe.includes("user"));
+  assert.ok(!auditUrl("http://user:pass@localhost:3000/x?k=v").safe.includes("pass"));
+  // a no-query URL has no '?' summary; the digest still differs per full URL
+  assert.equal(auditUrl("http://localhost:3000/a").safe, "http://localhost:3000/a");
+  assert.notEqual(auditUrl(SECRET_URL).digest, auditUrl("http://localhost:3000/order/O-00001").digest);
+  // degrades safely on an unparseable URL
+  assert.equal(auditUrl("http://").safe, "(unparseable url)");
+});
+
+test("observedDisplayPath exposes only a sanitized path (no origin, value, fragment, or credentials)", () => {
+  assert.equal(observedDisplayPath(SECRET_URL), "/order/O-00001?token");
+  assert.ok(!observedDisplayPath(SECRET_URL).includes("secret-value"));
+  assert.ok(!observedDisplayPath(SECRET_URL).includes("private"));
+  assert.ok(!observedDisplayPath(SECRET_URL).includes("localhost"));
+  assert.equal(observedDisplayPath("http://localhost:3000/a"), "/a");
 });
 
 // ── verifyStoredSnapshotDigest — disk-backed integrity re-check ───────────────────────

@@ -85,13 +85,18 @@ test("parseDecision: navigate_to_observed_url requires a snapshotId and a ration
   assert.ok(!parseDecision(wrap({ kind: "navigate_to_observed_url", snapshotId: "", rationale: "x" })).ok); // empty id
 });
 
-test("parseDecision: a model-supplied URL on navigate_to_observed_url is never read (only the snapshot id is)", () => {
+test("parseDecision: a model-supplied url on navigate_to_observed_url is REJECTED, not silently stripped", () => {
   const r = parseDecision(
     wrap({ kind: "navigate_to_observed_url", snapshotId: "snapshot-016", rationale: "x", url: "http://evil.example/pwn" } as Record<string, unknown>),
   );
-  assert.ok(r.ok && r.decision.kind === "navigate_to_observed_url");
-  // the parsed decision carries no url field at all — there is no path for model URL text
-  assert.ok(!("url" in (r as any).decision));
+  assert.ok(!r.ok, "an extra url property must make the decision schema-invalid");
+  assert.match((r as { ok: false; error: string }).error, /"url"/);
+});
+
+test("parseDecision: any unknown extra property on navigate_to_observed_url is rejected", () => {
+  assert.ok(!parseDecision(wrap({ kind: "navigate_to_observed_url", snapshotId: "snapshot-016", rationale: "x", ref: "e1" })).ok);
+  // exactly { kind, snapshotId, rationale } is accepted
+  assert.ok(parseDecision(wrap({ kind: "navigate_to_observed_url", snapshotId: "snapshot-016", rationale: "x" })).ok);
 });
 
 test("parseDecision: a bare navigate-with-url decision (no snapshot id) is rejected as an unknown kind", () => {

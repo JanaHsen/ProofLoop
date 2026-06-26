@@ -51,6 +51,8 @@ interface PageActuatorOpts {
   onNavigate?: (url: string, count: number) => string;
   /** Throw on the navigate() call with this 1-based count (1 = entry, 2 = first revisit). */
   throwOnNavCount?: number;
+  /** When set, snapshot() always reports this page URL (so it is OBSERVED from the start). */
+  fixedPageUrl?: string;
 }
 
 class PageActuator implements BrowserActuator {
@@ -66,7 +68,7 @@ class PageActuator implements BrowserActuator {
     this.currentUrl = this.o.onNavigate ? this.o.onNavigate(url, count) : url;
   }
   async snapshot() {
-    return pageAt(this.currentUrl);
+    return pageAt(this.o.fixedPageUrl ?? this.currentUrl);
   }
   async clickRef(ref: ValidatedRef): Promise<ToolResult> {
     this.clicks.push(ref);
@@ -133,14 +135,14 @@ const errsByCode = (events: RunEvent[], code: string) =>
 const stepEnds = (events: RunEvent[]) => events.filter((e) => e.type === "step_end");
 
 /** Step 1 → step_complete; step 2 → navigate to the observed page-A snapshot, then complete. */
-function revisitScript(extraOnNav?: Record<string, unknown>) {
+function revisitScript() {
   let navigated = false;
   return (ctx: DecisionContext): unknown => {
     if (ctx.step.ordinal === 1) return { kind: "step_complete", rationale: "page A is shown" };
     if (!navigated) {
       navigated = true;
-      const target = (ctx.observedPages ?? []).find((p: ObservedPage) => p.pageUrl.endsWith("/a"));
-      return { kind: "navigate_to_observed_url", snapshotId: target!.snapshotId, rationale: "revisit page A", ...extraOnNav };
+      const target = (ctx.observedPages ?? []).find((p: ObservedPage) => p.displayPath === "/a");
+      return { kind: "navigate_to_observed_url", snapshotId: target!.snapshotId, rationale: "revisit page A" };
     }
     return { kind: "step_complete", rationale: "revisited page A" };
   };
@@ -164,28 +166,12 @@ test("POSITIVE: navigate_to_observed_url resolves the stored URL, navigates, cap
     assert.ok(nav.resultingSnapshotId && nav.resultingSnapshotId.startsWith("snapshot-"));
     // the actuator was driven to the entry page AND re-navigated to the trusted URL
     assert.ok(out.actuator.navigations.includes(`${ORIGIN}/a`));
-    // the decision was offered observed pages including page A
+    // the decision was offered observed pages including page A, as a sanitized path (no origin)
     const step2 = out.decider.seen.find((c) => c.step.ordinal === 2 && c.observedPages);
-    assert.ok(step2?.observedPages?.some((p) => p.pageUrl === `${ORIGIN}/a`));
+    assert.ok(step2?.observedPages?.some((p) => p.displayPath === "/a"));
+    assert.ok(!step2?.observedPages?.some((p) => (p as any).pageUrl !== undefined), "no raw pageUrl is sent to the model");
     // audit chain (element actions) still verifies — navigation events don't break it
     assert.equal(verifyAuditChain(out.runDir).ok, true);
-  } finally {
-    cleanup();
-  }
-});
-
-test("PROOF arbitrary URLs are impossible: a url smuggled onto the decision is ignored; only the stored URL is navigated", async () => {
-  const actuator = new PageActuator();
-  // The model also supplies url:evil — parseDecision strips it; resolution uses the stored URL.
-  const { out, cleanup } = await execute(revisitScript({ url: "http://evil.example/pwn" }), actuator);
-  try {
-    assert.equal(out.manifest.executionStatus, "completed");
-    // every navigation target is on the SUT origin; the invented URL never reached the browser
-    for (const u of out.actuator.navigations) {
-      assert.ok(u.startsWith(ORIGIN), `navigation target escaped origin: ${u}`);
-    }
-    assert.ok(!out.actuator.navigations.some((u) => u.includes("evil.example")));
-    assert.equal(navEvents(out.events)[0].resolvedUrl, `${ORIGIN}/a`);
   } finally {
     cleanup();
   }
@@ -229,6 +215,105 @@ test("NEGATIVE: a redirect that escapes the SUT origin fails the run (NAVIGATION
     const nav = navEvents(out.events)[0];
     assert.equal(nav.status, "failed");
     assert.equal(nav.finalUrl, "http://evil.example/landing");
+    // the foreign post-navigation snapshot was NEVER persisted/indexed as trusted evidence
+    assert.equal(nav.resultingSnapshotId, undefined);
+    const snaps = out.events.filter((e): e is RunEvent & { type: "snapshot"; pageUrl?: string } => e.type === "snapshot");
+    assert.ok(!snaps.some((s) => (s.pageUrl ?? "").includes("evil.example")), "no foreign snapshot blob was stored");
+    // no foreign URL was offered back to the model on any later decision either
+    assert.ok(!out.decider.seen.some((c) => (c.observedPages ?? []).some((p) => p.displayPath.includes("evil"))));
+  } finally {
+    cleanup();
+  }
+});
+
+test("HARDENING: a url smuggled onto navigate is SCHEMA_INVALID; the browser is never navigated for it, and a corrected id-only decision proceeds", async () => {
+  const actuator = new PageActuator();
+  let phase = 0;
+  const script = (ctx: DecisionContext): unknown => {
+    if (ctx.step.ordinal === 1) return { kind: "step_complete", rationale: "shown" };
+    phase += 1;
+    const target = (ctx.observedPages ?? []).find((p: ObservedPage) => p.displayPath === "/a");
+    if (phase === 1) {
+      return { kind: "navigate_to_observed_url", snapshotId: target!.snapshotId, rationale: "revisit", url: "http://evil.example/pwn" };
+    }
+    if (phase === 2) {
+      return { kind: "navigate_to_observed_url", snapshotId: target!.snapshotId, rationale: "revisit (corrected, id only)" };
+    }
+    return { kind: "step_complete", rationale: "revisited" };
+  };
+  const { out, cleanup } = await execute(script, actuator);
+  try {
+    // the url-bearing decision was rejected at the schema layer (NOT nav_rejected) and retried
+    assert.equal(errsByCode(out.events, "SCHEMA_INVALID").length, 1);
+    assert.equal(errsByCode(out.events, "NAV_REJECTED").length, 0);
+    assert.equal(out.events.filter((e) => e.type === "retry").length, 1);
+    // no navigation event for the invalid decision; the corrected one executed
+    const navs = navEvents(out.events);
+    assert.equal(navs.length, 1);
+    assert.equal(navs[0].status, "executed");
+    // the browser was never driven to the smuggled URL
+    assert.ok(!out.actuator.navigations.some((u) => u.includes("evil.example")));
+    assert.equal(out.manifest.executionStatus, "completed");
+  } finally {
+    cleanup();
+  }
+});
+
+test("HARDENING: a REPEATED url-bearing navigate decision stops under the single-correction limit", async () => {
+  const actuator = new PageActuator();
+  const script = (ctx: DecisionContext): unknown => {
+    if (ctx.step.ordinal === 1) return { kind: "step_complete", rationale: "shown" };
+    const target = (ctx.observedPages ?? []).find((p: ObservedPage) => p.displayPath === "/a");
+    return { kind: "navigate_to_observed_url", snapshotId: target?.snapshotId ?? "snapshot-001", rationale: "revisit", url: "http://evil.example/pwn" };
+  };
+  const { out, cleanup } = await execute(script, actuator);
+  try {
+    assert.equal(out.manifest.executionStatus, "error");
+    // one correction, then the identical schema failure stops the run (>= 2 schema errors)
+    assert.ok(errsByCode(out.events, "SCHEMA_INVALID").length >= 2);
+    assert.equal(navEvents(out.events).length, 0);
+    assert.ok(!out.actuator.navigations.some((u) => u.includes("evil.example")));
+  } finally {
+    cleanup();
+  }
+});
+
+const SECRET_URL = `${ORIGIN}/order/O-00001?token=secret-value#private`;
+
+test("HARDENING: the browser receives the trusted internal URL, but the model and audit never see the secret query value or fragment", async () => {
+  const actuator = new PageActuator({ fixedPageUrl: SECRET_URL });
+  let navigated = false;
+  const script = (ctx: DecisionContext): unknown => {
+    if (ctx.step.ordinal === 1) return { kind: "step_complete", rationale: "order page shown" };
+    if (!navigated) {
+      navigated = true;
+      const target = (ctx.observedPages ?? []).find((p: ObservedPage) => p.displayPath.startsWith("/order/O-00001"));
+      return { kind: "navigate_to_observed_url", snapshotId: target!.snapshotId, rationale: "revisit the order" };
+    }
+    return { kind: "step_complete", rationale: "revisited" };
+  };
+  const { out, cleanup } = await execute(script, actuator);
+  try {
+    assert.equal(out.manifest.executionStatus, "completed");
+    // the browser DID receive the full trusted internal URL (it needs it to navigate)
+    assert.ok(out.actuator.navigations.some((u) => u.includes("secret-value")), "the real navigation uses the full URL");
+    // the model-facing observed pages reveal neither the secret value, the fragment, nor the origin
+    for (const c of out.decider.seen) {
+      for (const p of c.observedPages ?? []) {
+        assert.ok(!p.displayPath.includes("secret-value"));
+        assert.ok(!p.displayPath.includes("private"));
+        assert.equal(p.displayPath, "/order/O-00001?token");
+      }
+    }
+    // navigation events expose only the sanitized URL + a digest; never the secret or fragment
+    const nav = navEvents(out.events)[0];
+    assert.equal(nav.resolvedUrl, `${ORIGIN}/order/O-00001?token`);
+    assert.equal(nav.finalUrl, `${ORIGIN}/order/O-00001?token`);
+    assert.ok(nav.resolvedUrlDigest?.startsWith("sha256:"));
+    assert.ok(nav.sourceSnapshotId.startsWith("snapshot-"), "source snapshot id still gives provenance");
+    const blob = JSON.stringify(out.events.filter((e) => e.type === "navigation" || e.type === "error"));
+    assert.ok(!blob.includes("secret-value"), "no navigation/error event leaks the secret value");
+    assert.ok(!blob.includes("private"), "no navigation/error event leaks the fragment");
   } finally {
     cleanup();
   }

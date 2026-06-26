@@ -287,20 +287,32 @@ export function parseDecision(raw: unknown): DecisionParse {
         return { ok: false, error: "kind=blocked requires a non-empty reason" };
       }
       return { ok: true, decision: { kind: "blocked", reason: o.reason } };
-    case "navigate_to_observed_url":
-      // The model names a snapshot id ONLY. Any `url` it tries to smuggle in is ignored
-      // here (and rejected up front by the strict tool schema's additionalProperties:false):
-      // a destination is NEVER taken from model free text.
+    case "navigate_to_observed_url": {
+      // The model names a snapshot id ONLY. A destination is NEVER taken from model free text:
+      // an UNKNOWN property (especially `url`) is rejected here as schema-invalid — not silently
+      // stripped — so the harness never depends on the provider's strict-tool enforcement alone.
       if (!isNonEmptyString(o.snapshotId)) {
         return { ok: false, error: "kind=navigate_to_observed_url requires a non-empty snapshotId" };
       }
       if (!isNonEmptyString(o.rationale)) {
         return { ok: false, error: "kind=navigate_to_observed_url requires a non-empty rationale" };
       }
+      const allowed = new Set(["kind", "snapshotId", "rationale"]);
+      const extra = Object.keys(o).filter((k) => !allowed.has(k));
+      if (extra.length > 0) {
+        return {
+          ok: false,
+          error:
+            `kind=navigate_to_observed_url does not accept ` +
+            `${extra.map((k) => JSON.stringify(k)).join(", ")} — the destination is read from the ` +
+            `named snapshot, never supplied by the model (a \`url\` is never accepted)`,
+        };
+      }
       return {
         ok: true,
         decision: { kind: "navigate_to_observed_url", snapshotId: o.snapshotId, rationale: o.rationale },
       };
+    }
     default:
       return {
         ok: false,

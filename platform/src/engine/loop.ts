@@ -28,8 +28,10 @@ import {
   parseDecision,
 } from "./protocol";
 import {
+  auditUrl,
   deriveSutOrigin,
   isAllowedFinalUrl,
+  observedDisplayPath,
   resolveTrustedDestination,
   verifyStoredSnapshotDigest,
 } from "./navigation";
@@ -163,6 +165,10 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
     guard.beginFlow();
 
     let terminal: Terminal | null = null;
+    // (D48) Set when a navigation escaped the SUT origin: the browser is now on a foreign page,
+    // so the best-effort terminal snapshot is suppressed — a foreign accessibility tree is never
+    // persisted, not even as a terminal artifact.
+    let foreignOriginEscape = false;
     const attempts: AttemptSummary[] = [];
 
     stepsLoop: for (const step of opts.plan.steps) {
@@ -230,8 +236,9 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           attempts[attempts.length - 1].observableEffect = pageChangedSinceAction;
         }
         // (D48) Offer the distinct same-origin pages already observed this run as trusted
-        // revisit targets, addressed by snapshot id (never a URL the model could invent).
-        const observedPages = buildObservedPages(observed);
+        // revisit targets, addressed by snapshot id and shown only as a sanitized path (never
+        // the full internal URL the model could otherwise read or invent).
+        const observedPages = buildObservedPages(observed, sutOrigin);
         let res;
         try {
           res = await opts.decider.decide({
@@ -380,6 +387,10 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
             break stepsLoop;
           }
 
+          // SANITIZED audit form of the trusted destination — origin+path+query-KEY names only,
+          // never the full URL (which may carry a secret query value or fragment) in the log.
+          const destAudit = auditUrl(dest.url);
+
           // Navigate through the SAME bounded browser/MCP abstraction the entry page uses.
           try {
             await opts.actuator.navigate(dest.url);
@@ -389,7 +400,8 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
               decisionId,
               sourceSnapshotId: dest.sourceSnapshotId,
               startedAt,
-              resolvedUrl: dest.url,
+              resolvedUrl: destAudit.safe,
+              resolvedUrlDigest: destAudit.digest,
               status: "failed",
               detail: scrub(errMsg(e)),
               stepId: step.id,
@@ -400,7 +412,7 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           }
           guard.recordAction();
 
-          // Fresh post-navigation snapshot (snapshot-then-act preserved; result evidence).
+          // Fresh post-navigation snapshot — held IN MEMORY only; not yet persisted/indexed.
           let postSnap: ParsedSnapshot;
           try {
             postSnap = maskSnapshot(await opts.actuator.snapshot(), [...sensitiveValues]);
@@ -410,7 +422,8 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
               decisionId,
               sourceSnapshotId: dest.sourceSnapshotId,
               startedAt,
-              resolvedUrl: dest.url,
+              resolvedUrl: destAudit.safe,
+              resolvedUrlDigest: destAudit.digest,
               status: "failed",
               detail: scrub(`post-navigation snapshot failed: ${errMsg(e)}`),
               stepId: step.id,
@@ -419,42 +432,49 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
             terminal = { status: "error" };
             break stepsLoop;
           }
-          const post = recordSnap(postSnap, "pre_action", step.id);
 
-          // Redirect-escape guard (contract item 9): the final URL must stay same-origin.
+          // Redirect-escape guard (contract item 9): validate the FINAL URL BEFORE persisting.
+          // A cross-origin (or otherwise invalid) final URL is never stored or indexed as
+          // trusted evidence — the foreign accessibility tree does not enter the run.
           if (!isAllowedFinalUrl(postSnap.pageUrl, sutOrigin)) {
+            const finalAudit = postSnap.pageUrl !== undefined ? auditUrl(postSnap.pageUrl) : undefined;
             logger.append({
               type: "navigation",
               decisionId,
               sourceSnapshotId: dest.sourceSnapshotId,
               startedAt,
-              resolvedUrl: dest.url,
+              resolvedUrl: destAudit.safe,
+              resolvedUrlDigest: destAudit.digest,
               status: "failed",
-              resultingSnapshotId: post.snapshotId,
-              ...(postSnap.pageUrl !== undefined ? { finalUrl: postSnap.pageUrl } : {}),
+              ...(finalAudit ? { finalUrl: finalAudit.safe, finalUrlDigest: finalAudit.digest } : {}),
               detail: "navigation left the allowed SUT origin",
               stepId: step.id,
             });
             logger.append({
               type: "error",
               code: "NAVIGATION_CROSS_ORIGIN",
-              detail: scrub(`final URL ${postSnap.pageUrl ?? "(unknown)"} is not on the allowed origin ${sutOrigin}`),
+              detail: scrub(`final URL ${finalAudit ? finalAudit.safe : "(unknown)"} is not on the allowed origin ${sutOrigin}`),
               decisionId,
               stepId: step.id,
             });
+            foreignOriginEscape = true; // suppress the terminal capture of the foreign page
             terminal = { status: "error" };
             break stepsLoop;
           }
 
+          // Final URL is same-origin: only NOW persist + index the post-navigation snapshot.
+          const post = recordSnap(postSnap, "pre_action", step.id);
+          const finalAudit = postSnap.pageUrl !== undefined ? auditUrl(postSnap.pageUrl) : undefined;
           logger.append({
             type: "navigation",
             decisionId,
             sourceSnapshotId: dest.sourceSnapshotId,
             startedAt,
-            resolvedUrl: dest.url,
+            resolvedUrl: destAudit.safe,
+            resolvedUrlDigest: destAudit.digest,
             status: "executed",
             resultingSnapshotId: post.snapshotId,
-            ...(postSnap.pageUrl !== undefined ? { finalUrl: postSnap.pageUrl } : {}),
+            ...(finalAudit ? { finalUrl: finalAudit.safe, finalUrlDigest: finalAudit.digest } : {}),
             stepId: step.id,
           });
 
@@ -592,8 +612,11 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
     if (terminal?.guardTrip) {
       logger.append({ type: "guard_tripped", reason: terminal.guardTrip.reason, detail: scrub(terminal.guardTrip.detail) });
     }
-    // terminal snapshot (best effort) for criteria with no `after` (Phase 3)
-    await captureSnapshot(opts.actuator, recordSnap, "terminal", [...sensitiveValues]);
+    // terminal snapshot (best effort) for criteria with no `after` (Phase 3) — skipped after a
+    // cross-origin escape so the foreign accessibility tree is never persisted (D48).
+    if (!foreignOriginEscape) {
+      await captureSnapshot(opts.actuator, recordSnap, "terminal", [...sensitiveValues]);
+    }
     logger.append({ type: "flow_end", executionStatus: status });
     return logger.finalize(status);
   } catch (e) {
@@ -665,21 +688,27 @@ function toLoggedDecision(
 const OBSERVED_PAGES_MAX = 24;
 
 /**
- * (D48) Distinct same-origin pages observed so far this run, addressable by snapshot id. One
- * entry per distinct stored page URL — the FIRST snapshot that observed it (the original
- * sighting of a created resource), so a revisit cites the placement evidence, not a later
- * re-observation. Capped to the most recently first-seen `OBSERVED_PAGES_MAX`.
+ * (D48) Distinct pages observed so far this run that pass the SAME-ORIGIN policy, presented to
+ * the model as `{ snapshotId, displayPath, pageTitle? }` — a SANITIZED path (no origin,
+ * credentials, query values, or fragment), never the full internal URL. URLs that are external,
+ * non-http(s), credential-bearing, malformed, or missing are excluded entirely, so the model can
+ * never be steered toward an off-policy destination. One entry per distinct stored URL — the
+ * FIRST sighting (the original placement of a created resource) — capped to `OBSERVED_PAGES_MAX`.
+ * The executor's internal `observed` index keeps the complete URL for deterministic navigation;
+ * only this projection is model-facing.
  */
 function buildObservedPages(
   observed: Map<string, { digest: string; pageUrl?: string; pageTitle?: string }>,
+  sutOrigin: string,
 ): ObservedPage[] {
   const byUrl = new Map<string, ObservedPage>();
   for (const [snapshotId, rec] of observed) {
     if (typeof rec.pageUrl !== "string" || rec.pageUrl.length === 0) continue;
+    if (!isAllowedFinalUrl(rec.pageUrl, sutOrigin)) continue; // same-origin http(s), no creds
     if (byUrl.has(rec.pageUrl)) continue; // first sighting of this URL wins
     byUrl.set(rec.pageUrl, {
       snapshotId,
-      pageUrl: rec.pageUrl,
+      displayPath: observedDisplayPath(rec.pageUrl),
       ...(rec.pageTitle !== undefined ? { pageTitle: rec.pageTitle } : {}),
     });
   }

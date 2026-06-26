@@ -86,7 +86,7 @@ class CheckoutDecider implements Decider {
       inner = { kind: "step_complete", rationale: "the order page is already shown" };
     } else if (!this.navigated) {
       this.navigated = true;
-      const order = (ctx.observedPages ?? []).find((p: ObservedPage) => p.pageUrl === ORDER_URL);
+      const order = (ctx.observedPages ?? []).find((p: ObservedPage) => p.displayPath === "/order/O-00001");
       assert.ok(order, "the order page must be offered as an observed revisit target on S4");
       inner = { kind: "navigate_to_observed_url", snapshotId: order!.snapshotId, rationale: "revisit the order's own page" };
     } else {

@@ -14,6 +14,7 @@
  * directly-supplied URL has no path into a navigation.
  */
 
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -136,6 +137,53 @@ export function resolveTrustedDestination(args: {
 export function isAllowedFinalUrl(finalUrl: string | undefined, sutOrigin: string): boolean {
   if (typeof finalUrl !== "string" || finalUrl.trim() === "") return false;
   return checkUrlAgainstOrigin(finalUrl, sutOrigin).ok;
+}
+
+/** sha256 of a string, `sha256:<hex>` — used to correlate a URL without exposing it. */
+function sha256Hex(s: string): string {
+  return "sha256:" + createHash("sha256").update(s, "utf8").digest("hex");
+}
+
+export interface AuditUrl {
+  /** origin + pathname + a redacted query-KEY summary; no fragment, no credentials, no query values. */
+  safe: string;
+  /** sha256 of the FULL internal URL, so two audited URLs can be correlated without exposing either. */
+  digest: string;
+}
+
+/**
+ * Deterministic, non-sensitive audit form of a URL. Preserves the origin and pathname; reduces
+ * any query string to its KEY names only (`?token` — never the value); drops the fragment and
+ * any credentials entirely. The full URL's digest is returned for correlation. Degrades safely
+ * (does not throw) when the input does not parse, so it is usable on an untrusted final URL too.
+ * Query VALUES, fragments, and passwords never reach a prompt, an event, or an error string.
+ */
+export function auditUrl(fullUrl: string): AuditUrl {
+  const digest = sha256Hex(fullUrl);
+  let u: URL | undefined;
+  try {
+    u = new URL(fullUrl);
+  } catch {
+    return { safe: "(unparseable url)", digest };
+  }
+  const keys = [...new Set([...u.searchParams.keys()])];
+  const query = keys.length ? `?${keys.join(",")}` : "";
+  return { safe: `${u.origin}${u.pathname}${query}`, digest };
+}
+
+/**
+ * The model-facing safe page descriptor: pathname plus a redacted query-KEY summary, with no
+ * origin, credentials, query values, or fragment. The model needs only enough to recognize a
+ * page it already saw; the complete internal destination is kept out of the prompt.
+ */
+export function observedDisplayPath(fullUrl: string): string {
+  try {
+    const u = new URL(fullUrl);
+    const keys = [...new Set([...u.searchParams.keys()])];
+    return `${u.pathname}${keys.length ? `?${keys.join(",")}` : ""}`;
+  } catch {
+    return "(unparseable path)";
+  }
 }
 
 /**

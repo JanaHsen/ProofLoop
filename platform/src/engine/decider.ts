@@ -38,12 +38,14 @@ export interface AttemptSummary {
 }
 
 /**
- * (D48) A distinct page the run has ALREADY observed, offered to the model as a trusted
- * revisit target. The model selects `snapshotId` (never a URL) for navigate_to_observed_url.
+ * (D48) A distinct page the run has ALREADY observed, offered to the model as a trusted revisit
+ * target. The model selects `snapshotId` (never a URL). `displayPath` is a SANITIZED descriptor
+ * (pathname + redacted query-key names; no origin, credentials, query values, or fragment) — the
+ * full internal URL is deliberately kept out of the prompt.
  */
 export interface ObservedPage {
   snapshotId: string;
-  pageUrl: string;
+  displayPath: string;
   pageTitle?: string;
 }
 
@@ -151,7 +153,7 @@ function buildUserMessage(ctx: DecisionContext): string {
       "Observed pages you may revisit with navigate_to_observed_url (name the snapshot id, not a URL):",
     );
     for (const p of ctx.observedPages) {
-      lines.push(`  ${p.snapshotId}: ${p.pageUrl}${p.pageTitle ? ` (${p.pageTitle})` : ""}`);
+      lines.push(`  ${p.snapshotId}: ${p.displayPath}${p.pageTitle ? ` (${p.pageTitle})` : ""}`);
     }
   }
   if (ctx.pageChangedSinceAction) {

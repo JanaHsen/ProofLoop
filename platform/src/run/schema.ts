@@ -361,6 +361,11 @@ export const FAILURE_DETAIL_MAX_LEN = 500;
  * snapshot captured EARLIER in THIS run — re-validated same-origin against the configured
  * SUT origin. Emitted on every attempt so a rejection (safety contract) or a failure
  * (transport / redirect-escape) is auditable too, not just success.
+ *
+ * URL fields are SANITIZED for audit (origin + pathname + query-KEY names only; no fragment,
+ * credentials, or query values) — the full internal URL is used to drive the browser but never
+ * written here. `*UrlDigest` carries a sha256 of the full URL so resolved/final can be
+ * correlated without exposing either.
  */
 export interface NavigationEvent extends BaseRunEvent {
   type: "navigation";
@@ -370,19 +375,27 @@ export interface NavigationEvent extends BaseRunEvent {
   /** ISO time the navigation was initiated (captured before the browser navigate call). */
   startedAt: string;
   /**
-   * The resolved, same-origin destination URL read from the source snapshot's stored
-   * `pageUrl`. Empty string on a pre-navigation rejection (no trusted URL was resolved).
+   * The SANITIZED resolved same-origin destination (origin + pathname + redacted query keys).
+   * Empty string on a pre-navigation rejection (no trusted URL was resolved).
    */
   resolvedUrl: string;
+  /** sha256 of the full resolved destination URL, for correlation. Absent on a rejection. */
+  resolvedUrlDigest?: string;
   status: "executed" | "rejected" | "failed";
-  /** The fresh post-navigation snapshot id — present only on `status === "executed"`. */
+  /**
+   * The fresh post-navigation snapshot id — present ONLY on `status === "executed"`. A
+   * cross-origin (or otherwise invalid) final URL is NEVER persisted/indexed, so a `failed`
+   * redirect-escape carries no `resultingSnapshotId`.
+   */
   resultingSnapshotId?: string;
   /**
-   * The final URL after navigation/redirects, taken from the post-navigation snapshot's
-   * `pageUrl` — present only on `status === "executed"`. Confirmed same-origin before the
-   * step is allowed to proceed.
+   * The SANITIZED final URL after navigation/redirects (same sanitization as `resolvedUrl`).
+   * Present on `executed` (confirmed same-origin before the snapshot was persisted) and on a
+   * `failed` redirect-escape (the sanitized foreign URL, for the audit trail).
    */
   finalUrl?: string;
+  /** sha256 of the full final URL, for correlation. */
+  finalUrlDigest?: string;
   /** Why the navigation was rejected (safety contract) or failed (transport/redirect-escape). */
   detail?: string;
 }
