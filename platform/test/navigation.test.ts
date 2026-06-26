@@ -100,9 +100,13 @@ test("NEGATIVE: a snapshot without a page URL is rejected", () => {
   }
 });
 
-test("NEGATIVE: a malformed stored URL is rejected", () => {
-  const d = resolve({ record: rec({ pageUrl: "http://" }) });
+test("NEGATIVE: a malformed stored URL is rejected without echoing the raw URL", () => {
+  // "http://[secret-marker" is an invalid IPv6 host → throws in new URL(); the rejection detail
+  // (which can reach a correction prompt) must not leak any part of that raw URL.
+  const d = resolve({ record: rec({ pageUrl: "http://[secret-marker" }) });
   assert.ok(!d.ok && d.code === "MALFORMED_URL");
+  assert.equal((d as { ok: false; detail: string }).detail, "the stored page URL does not parse");
+  assert.ok(!(d as { ok: false; detail: string }).detail.includes("secret-marker"));
 });
 
 test("NEGATIVE: a non-http(s) protocol (javascript:/data:/file:) is rejected", () => {

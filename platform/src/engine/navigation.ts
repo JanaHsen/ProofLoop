@@ -76,7 +76,10 @@ function checkUrlAgainstOrigin(
   try {
     u = new URL(pageUrl, sutOrigin);
   } catch {
-    return { ok: false, code: "MALFORMED_URL", detail: `stored page URL ${JSON.stringify(pageUrl)} does not parse` };
+    // Deliberately does NOT echo the raw URL: this detail can reach a correction prompt, and an
+    // unparseable string could still carry secret-bearing text. The snapshot id (in the caller's
+    // message) is enough to locate it.
+    return { ok: false, code: "MALFORMED_URL", detail: "the stored page URL does not parse" };
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") {
     return { ok: false, code: "UNSUPPORTED_PROTOCOL", detail: `protocol ${JSON.stringify(u.protocol)} is not http/https` };

@@ -25,6 +25,7 @@ import {
   buildCorrectionNotice,
   buildDecisionToolSchema,
 } from "./protocol";
+import { observedDisplayPath } from "./navigation";
 
 export interface AttemptSummary {
   action: "click" | "type";
@@ -122,12 +123,15 @@ export const SYSTEM_PROMPT = [
   "a fresh snapshot after each.",
 ].join("\n");
 
-function buildUserMessage(ctx: DecisionContext): string {
+export function buildUserMessage(ctx: DecisionContext): string {
   const lines: string[] = [];
   lines.push(`Step to perform: ${ctx.step.text}`);
   lines.push("");
+  // (D48) The current page URL is sanitized to the SAME model-facing form as the observed-page
+  // list — pathname + query-KEY names only; no origin, query values, fragment, or credentials —
+  // so a secret in a navigated-to URL is never echoed back into the prompt.
   lines.push(
-    `Current page: ${ctx.snapshot.pageTitle ?? "(untitled)"} (${ctx.snapshot.pageUrl ?? "unknown URL"})`,
+    `Current page: ${ctx.snapshot.pageTitle ?? "(untitled)"} (${ctx.snapshot.pageUrl ? observedDisplayPath(ctx.snapshot.pageUrl) : "unknown path"})`,
   );
   lines.push("");
   lines.push('Available elements (ref: role "name"):');
