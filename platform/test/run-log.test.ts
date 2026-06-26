@@ -282,7 +282,7 @@ test("run-log 1.1 reader reads a stored 1.0 run cleanly (no failureDetail on its
   }
 });
 
-test("readers accept supported run-log versions (1.0, 1.1, 1.2) and reject an unknown future version", () => {
+test("readers accept supported run-log versions (1.0, 1.1, 1.2, 1.3) and reject an unknown future version", () => {
   const root = tmpRoot();
   try {
     const p = path.join(root, "events.jsonl");
@@ -299,8 +299,8 @@ test("readers accept supported run-log versions (1.0, 1.1, 1.2) and reject an un
         entryUrl: "http://x/login",
       }) + "\n";
 
-    // every supported version parses cleanly (1.2 added in Phase 5 / D35)
-    for (const v of ["1.0", "1.1", "1.2"]) {
+    // every supported version parses cleanly (1.2 added in Phase 5 / D35; 1.3 in D48)
+    for (const v of ["1.0", "1.1", "1.2", "1.3"]) {
       fs.writeFileSync(p, ev(v));
       assert.equal(readEvents(p).events.length, 1, `events v${v} must read`);
     }
@@ -308,7 +308,7 @@ test("readers accept supported run-log versions (1.0, 1.1, 1.2) and reject an un
     // an unknown future version is rejected with the stable unsupported-schema error
     fs.writeFileSync(p, ev("2.0"));
     assert.throws(() => readEvents(p), UnsupportedRunLogSchemaError);
-    assert.throws(() => readEvents(p), /unsupported runLogSchemaVersion "2\.0" \(supported: 1\.0, 1\.1, 1\.2\)/);
+    assert.throws(() => readEvents(p), /unsupported runLogSchemaVersion "2\.0" \(supported: 1\.0, 1\.1, 1\.2, 1\.3\)/);
 
     // the manifest reader gates the same way: a stored 1.1 manifest still reads under the
     // 1.2 readers; a future 2.0 manifest is rejected.
@@ -332,7 +332,7 @@ test("readers accept supported run-log versions (1.0, 1.1, 1.2) and reject an un
   }
 });
 
-test("run-log 1.2 manifest records effective mode + requestedMode + typed browser; no raw subprocess args", () => {
+test("current run-log manifest records effective mode + requestedMode + typed browser; no raw subprocess args", () => {
   const root = tmpRoot();
   try {
     const logger = new RunLogger({
@@ -356,7 +356,7 @@ test("run-log 1.2 manifest records effective mode + requestedMode + typed browse
     logger.finalize("completed");
 
     const m = readManifest(logger.runDir);
-    assert.equal(m.runLogSchemaVersion, "1.2");
+    assert.equal(m.runLogSchemaVersion, RUN_LOG_SCHEMA_VERSION);
     assert.equal(m.mode, "headed");
     assert.equal(m.requestedMode, "headed");
     assert.deepEqual(m.browser, {

@@ -22,10 +22,17 @@ import type { ToolResult } from "../mcp/client";
 import {
   DecisionFailure,
   INVALID_SNAPSHOT_REF,
+  NAV_REJECTED,
   REPEATED_NO_EFFECT,
   StepDecision,
   parseDecision,
 } from "./protocol";
+import {
+  deriveSutOrigin,
+  isAllowedFinalUrl,
+  resolveTrustedDestination,
+  verifyStoredSnapshotDigest,
+} from "./navigation";
 import {
   DEFAULT_GUARDS,
   GuardConfig,
@@ -33,9 +40,9 @@ import {
   GuardTrip,
   progressKey,
 } from "./guards";
-import type { AttemptSummary, Decider } from "./decider";
+import type { AttemptSummary, Decider, ObservedPage } from "./decider";
 import { RunLogger } from "../run/logger";
-import { BrowserConfig, BrowserMode, computePlanHash, ExecutionStatus, FAILURE_DETAIL_MAX_LEN, LoggedDecision, LoggedValue, RunManifest, hashStepText } from "../run/schema";
+import { BrowserConfig, BrowserMode, computePlanHash, ExecutionStatus, FAILURE_DETAIL_MAX_LEN, LoggedDecision, LoggedValue, RunManifest, SnapshotKind, hashStepText } from "../run/schema";
 import { computeCostUsd, loadPricing, ratesFor, usageTotals } from "../run/pricing";
 import { SensitivitySignal, extractSecretLiterals, isSensitive, redactValuesInText } from "../run/redaction";
 
@@ -115,10 +122,35 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
     ]),
   );
   const scrub = (s: string): string => redactValuesInText(s, [...sensitiveValues]);
+  const clock = opts.now ?? ((): Date => new Date());
   const entryUrl = joinUrl(opts.baseUrl, opts.plan.entry);
   let decisionSeq = 0;
 
+  // (D48) Index every snapshot this run records, so a later navigate_to_observed_url can be
+  // resolved to that snapshot's STORED page URL — a destination only ever sourced from
+  // evidence captured in THIS run, never from model free text. `recordSnap` is the single
+  // path that stores a snapshot (it wraps the logger), so the index can never miss one.
+  const observed = new Map<string, { digest: string; pageUrl?: string; pageTitle?: string }>();
+  const recordSnap = (
+    snap: ParsedSnapshot,
+    kind: SnapshotKind,
+    stepId?: string,
+  ): { snapshotId: string; digest: string; path: string } => {
+    // `snap` is already masked at capture; pass [] so the stored bytes and digest agree.
+    const rec = logger.recordSnapshot(snap, kind, [], stepId);
+    observed.set(rec.snapshotId, {
+      digest: rec.digest,
+      ...(snap.pageUrl !== undefined ? { pageUrl: snap.pageUrl } : {}),
+      ...(snap.pageTitle !== undefined ? { pageTitle: snap.pageTitle } : {}),
+    });
+    return rec;
+  };
+
   try {
+    // (D48) The ONLY origin a trusted observed-URL navigation may ever reach. Derived once
+    // from BASE_URL; a malformed BASE_URL throws here and is surfaced as EXECUTION_ERROR
+    // rather than silently widening "same origin".
+    const sutOrigin = deriveSutOrigin(opts.baseUrl);
     logger.append({
       type: "flow_start",
       flowId: opts.plan.id,
@@ -184,13 +216,9 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           }
         }
 
-        // snap is already masked at capture; recordSnapshot stores it as-is.
-        const { snapshotId, digest } = logger.recordSnapshot(
-          snap,
-          "pre_action",
-          [],
-          step.id,
-        );
+        // snap is already masked at capture; recordSnap stores it as-is and indexes it
+        // (the index feeds observed-pages and trusted observed-URL navigation, D48).
+        const { snapshotId, digest } = recordSnap(snap, "pre_action", step.id);
 
         const pageChangedSinceAction =
           attempts.length > 0 &&
@@ -201,6 +229,9 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
         if (attempts.length > 0 && lastActionKey !== null) {
           attempts[attempts.length - 1].observableEffect = pageChangedSinceAction;
         }
+        // (D48) Offer the distinct same-origin pages already observed this run as trusted
+        // revisit targets, addressed by snapshot id (never a URL the model could invent).
+        const observedPages = buildObservedPages(observed);
         let res;
         try {
           res = await opts.decider.decide({
@@ -209,6 +240,7 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
             attemptsInStep: attempts.slice(-8),
             ...(pageChangedSinceAction ? { pageChangedSinceAction: true } : {}),
             ...(pendingCorrection ? { correction: pendingCorrection } : {}),
+            ...(observedPages.length ? { observedPages } : {}),
           });
         } catch (e) {
           logger.append({ type: "error", code: "DECIDER_FAILED", detail: scrub(errMsg(e)), stepId: step.id });
@@ -282,9 +314,159 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           break stepsLoop;
         }
         if (decision.kind === "step_complete") {
-          await captureSnapshot(opts.actuator, logger, "step_boundary", [...sensitiveValues], step.id);
+          await captureSnapshot(opts.actuator, recordSnap, "step_boundary", [...sensitiveValues], step.id);
           logger.append({ type: "step_end", stepId: step.id });
           break decisionLoop;
+        }
+
+        if (decision.kind === "navigate_to_observed_url") {
+          // (D48) Trusted observed-URL navigation. The model named a SOURCE snapshot id; the
+          // destination is resolved deterministically from that snapshot's STORED page URL and
+          // re-validated same-origin. No model-supplied URL ever reaches the browser.
+          const startedAt = clock().toISOString();
+          const idx = observed.get(decision.snapshotId);
+          const record = idx
+            ? {
+                snapshotId: decision.snapshotId,
+                runId: opts.runId,
+                digest: idx.digest,
+                ...(idx.pageUrl !== undefined ? { pageUrl: idx.pageUrl } : {}),
+              }
+            : undefined;
+          // Re-verify the stored blob's digest from disk at navigation time (contract item 3).
+          const digestValid = record
+            ? verifyStoredSnapshotDigest(logger.runDir, decision.snapshotId, record.digest)
+            : false;
+          const dest = resolveTrustedDestination({
+            snapshotId: decision.snapshotId,
+            currentRunId: opts.runId,
+            sutOrigin,
+            record,
+            digestValid,
+          });
+
+          if (!dest.ok) {
+            // Rejected by the safety contract: audit it, then allow ONE informed correction.
+            logger.append({
+              type: "navigation",
+              decisionId,
+              sourceSnapshotId: decision.snapshotId,
+              startedAt,
+              resolvedUrl: "",
+              status: "rejected",
+              detail: scrub(dest.detail),
+              stepId: step.id,
+            });
+            logger.append({ type: "error", code: NAV_REJECTED, detail: scrub(dest.detail), decisionId, stepId: step.id });
+            const failure: DecisionFailure = {
+              kind: "nav_rejected",
+              detail: dest.detail,
+              attemptedSnapshotId: decision.snapshotId,
+            };
+            if (failureSig(failure) === lastCorrectionSig) {
+              terminal = { status: "error" };
+              break stepsLoop;
+            }
+            lastCorrectionSig = failureSig(failure);
+            pendingCorrection = failure;
+            logger.append({ type: "retry", ofDecisionId: decisionId, reason: scrub(`navigation rejected: ${dest.detail}`), stepId: step.id });
+            continue decisionLoop;
+          }
+
+          // Spend/iteration guards apply to a navigation exactly as to an element action.
+          const navTrip = guard.beforeAction();
+          if (navTrip) {
+            terminal = mapTrip(navTrip);
+            break stepsLoop;
+          }
+
+          // Navigate through the SAME bounded browser/MCP abstraction the entry page uses.
+          try {
+            await opts.actuator.navigate(dest.url);
+          } catch (e) {
+            logger.append({
+              type: "navigation",
+              decisionId,
+              sourceSnapshotId: dest.sourceSnapshotId,
+              startedAt,
+              resolvedUrl: dest.url,
+              status: "failed",
+              detail: scrub(errMsg(e)),
+              stepId: step.id,
+            });
+            logger.append({ type: "error", code: "NAVIGATION_FAILED", detail: scrub(errMsg(e)), decisionId, stepId: step.id });
+            terminal = { status: "error" };
+            break stepsLoop;
+          }
+          guard.recordAction();
+
+          // Fresh post-navigation snapshot (snapshot-then-act preserved; result evidence).
+          let postSnap: ParsedSnapshot;
+          try {
+            postSnap = maskSnapshot(await opts.actuator.snapshot(), [...sensitiveValues]);
+          } catch (e) {
+            logger.append({
+              type: "navigation",
+              decisionId,
+              sourceSnapshotId: dest.sourceSnapshotId,
+              startedAt,
+              resolvedUrl: dest.url,
+              status: "failed",
+              detail: scrub(`post-navigation snapshot failed: ${errMsg(e)}`),
+              stepId: step.id,
+            });
+            logger.append({ type: "error", code: "SNAPSHOT_FAILED", detail: scrub(errMsg(e)), stepId: step.id });
+            terminal = { status: "error" };
+            break stepsLoop;
+          }
+          const post = recordSnap(postSnap, "pre_action", step.id);
+
+          // Redirect-escape guard (contract item 9): the final URL must stay same-origin.
+          if (!isAllowedFinalUrl(postSnap.pageUrl, sutOrigin)) {
+            logger.append({
+              type: "navigation",
+              decisionId,
+              sourceSnapshotId: dest.sourceSnapshotId,
+              startedAt,
+              resolvedUrl: dest.url,
+              status: "failed",
+              resultingSnapshotId: post.snapshotId,
+              ...(postSnap.pageUrl !== undefined ? { finalUrl: postSnap.pageUrl } : {}),
+              detail: "navigation left the allowed SUT origin",
+              stepId: step.id,
+            });
+            logger.append({
+              type: "error",
+              code: "NAVIGATION_CROSS_ORIGIN",
+              detail: scrub(`final URL ${postSnap.pageUrl ?? "(unknown)"} is not on the allowed origin ${sutOrigin}`),
+              decisionId,
+              stepId: step.id,
+            });
+            terminal = { status: "error" };
+            break stepsLoop;
+          }
+
+          logger.append({
+            type: "navigation",
+            decisionId,
+            sourceSnapshotId: dest.sourceSnapshotId,
+            startedAt,
+            resolvedUrl: dest.url,
+            status: "executed",
+            resultingSnapshotId: post.snapshotId,
+            ...(postSnap.pageUrl !== undefined ? { finalUrl: postSnap.pageUrl } : {}),
+            stepId: step.id,
+          });
+
+          // A fresh document navigation is progress by definition: do NOT arm the no-progress
+          // backstop on the nav transition (a same-URL reload would otherwise look stuck), and
+          // clear the element-action no-effect tracker. Corrections reset, like a real action.
+          progressBaseline = null;
+          lastActionKey = null;
+          lastExecutedAction = null;
+          lastCorrectionSig = null;
+          pendingCorrection = undefined;
+          continue decisionLoop;
         }
 
         // kind === "action"
@@ -411,7 +593,7 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
       logger.append({ type: "guard_tripped", reason: terminal.guardTrip.reason, detail: scrub(terminal.guardTrip.detail) });
     }
     // terminal snapshot (best effort) for criteria with no `after` (Phase 3)
-    await captureSnapshot(opts.actuator, logger, "terminal", [...sensitiveValues]);
+    await captureSnapshot(opts.actuator, recordSnap, "terminal", [...sensitiveValues]);
     logger.append({ type: "flow_end", executionStatus: status });
     return logger.finalize(status);
   } catch (e) {
@@ -448,6 +630,8 @@ function failureSig(f: DecisionFailure): string {
       return `invalid_ref:${f.attemptedRef}:${f.reason}`;
     case "repeated_no_effect":
       return `repeat:${f.attemptedRef}:${f.detail}`;
+    case "nav_rejected":
+      return `nav_rejected:${f.attemptedSnapshotId}:${f.detail}`;
   }
 }
 
@@ -471,7 +655,35 @@ function toLoggedDecision(
   if (decision.kind === "step_complete") {
     return { kind: "step_complete", rationale: scrub(decision.rationale) };
   }
+  if (decision.kind === "navigate_to_observed_url") {
+    return { kind: "navigate_to_observed_url", snapshotId: decision.snapshotId, rationale: scrub(decision.rationale) };
+  }
   return { kind: "blocked", reason: scrub(decision.reason) };
+}
+
+/** Cap on how many distinct observed pages are offered to the decider per decision (D48). */
+const OBSERVED_PAGES_MAX = 24;
+
+/**
+ * (D48) Distinct same-origin pages observed so far this run, addressable by snapshot id. One
+ * entry per distinct stored page URL — the FIRST snapshot that observed it (the original
+ * sighting of a created resource), so a revisit cites the placement evidence, not a later
+ * re-observation. Capped to the most recently first-seen `OBSERVED_PAGES_MAX`.
+ */
+function buildObservedPages(
+  observed: Map<string, { digest: string; pageUrl?: string; pageTitle?: string }>,
+): ObservedPage[] {
+  const byUrl = new Map<string, ObservedPage>();
+  for (const [snapshotId, rec] of observed) {
+    if (typeof rec.pageUrl !== "string" || rec.pageUrl.length === 0) continue;
+    if (byUrl.has(rec.pageUrl)) continue; // first sighting of this URL wins
+    byUrl.set(rec.pageUrl, {
+      snapshotId,
+      pageUrl: rec.pageUrl,
+      ...(rec.pageTitle !== undefined ? { pageTitle: rec.pageTitle } : {}),
+    });
+  }
+  return [...byUrl.values()].slice(-OBSERVED_PAGES_MAX);
 }
 
 /**
@@ -510,15 +722,15 @@ function maskSnapshot(snap: ParsedSnapshot, values: string[]): ParsedSnapshot {
 
 async function captureSnapshot(
   actuator: BrowserActuator,
-  logger: RunLogger,
+  recordSnap: (snap: ParsedSnapshot, kind: SnapshotKind, stepId?: string) => unknown,
   kind: "step_boundary" | "terminal",
   sensitiveValues: string[],
   stepId?: string,
 ): Promise<void> {
   try {
-    // mask at capture (same as the main loop), then store the masked snapshot
+    // mask at capture (same as the main loop), then store + index the masked snapshot
     const snap = maskSnapshot(await actuator.snapshot(), sensitiveValues);
-    logger.recordSnapshot(snap, kind, [], stepId);
+    recordSnap(snap, kind, stepId);
   } catch {
     /* boundary/terminal snapshot is best-effort */
   }

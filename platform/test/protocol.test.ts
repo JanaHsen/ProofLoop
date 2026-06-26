@@ -71,6 +71,33 @@ test("parseDecision: action requires a supported verb", () => {
   assert.ok(!parseDecision(wrap({ kind: "action", action: "hover", ref: "e8", rationale: "x" })).ok); // unsupported verb
 });
 
+test("parseDecision: valid navigate_to_observed_url (D48) keeps only the snapshot id", () => {
+  const r = parseDecision(wrap({ kind: "navigate_to_observed_url", snapshotId: "snapshot-016", rationale: "revisit the order" }));
+  assert.ok(r.ok && r.decision.kind === "navigate_to_observed_url");
+  if (r.ok && r.decision.kind === "navigate_to_observed_url") {
+    assert.equal(r.decision.snapshotId, "snapshot-016");
+  }
+});
+
+test("parseDecision: navigate_to_observed_url requires a snapshotId and a rationale", () => {
+  assert.ok(!parseDecision(wrap({ kind: "navigate_to_observed_url", rationale: "x" })).ok); // missing snapshotId
+  assert.ok(!parseDecision(wrap({ kind: "navigate_to_observed_url", snapshotId: "snapshot-016" })).ok); // missing rationale
+  assert.ok(!parseDecision(wrap({ kind: "navigate_to_observed_url", snapshotId: "", rationale: "x" })).ok); // empty id
+});
+
+test("parseDecision: a model-supplied URL on navigate_to_observed_url is never read (only the snapshot id is)", () => {
+  const r = parseDecision(
+    wrap({ kind: "navigate_to_observed_url", snapshotId: "snapshot-016", rationale: "x", url: "http://evil.example/pwn" } as Record<string, unknown>),
+  );
+  assert.ok(r.ok && r.decision.kind === "navigate_to_observed_url");
+  // the parsed decision carries no url field at all — there is no path for model URL text
+  assert.ok(!("url" in (r as any).decision));
+});
+
+test("parseDecision: a bare navigate-with-url decision (no snapshot id) is rejected as an unknown kind", () => {
+  assert.ok(!parseDecision(wrap({ kind: "navigate", url: "http://evil.example" })).ok);
+});
+
 test("parseDecision: step_complete needs rationale, blocked needs reason", () => {
   assert.ok(!parseDecision(wrap({ kind: "step_complete" })).ok);
   assert.ok(!parseDecision(wrap({ kind: "blocked" })).ok);
@@ -106,7 +133,7 @@ test("buildDecisionToolSchema: steers ref to the snapshot's refs in the action b
   }
 });
 
-test("DECISION_TOOL_SCHEMA: plain-object top level wrapping a 4-branch decision union", () => {
+test("DECISION_TOOL_SCHEMA: plain-object top level wrapping a 5-branch decision union", () => {
   // top level must NOT use anyOf/oneOf/allOf — Anthropic rejects those at the top level
   assert.equal((DECISION_TOOL_SCHEMA as any).type, "object");
   assert.equal((DECISION_TOOL_SCHEMA as any).additionalProperties, false);
@@ -115,7 +142,7 @@ test("DECISION_TOOL_SCHEMA: plain-object top level wrapping a 4-branch decision 
   assert.ok(!("oneOf" in DECISION_TOOL_SCHEMA));
   assert.ok(!("allOf" in DECISION_TOOL_SCHEMA));
   const branches = branchesOf(DECISION_TOOL_SCHEMA);
-  assert.equal(branches.length, 4);
+  assert.equal(branches.length, 5); // click, type, step_complete, blocked, navigate_to_observed_url (D48)
   // every branch is a closed object with a const kind discriminator and complete required
   for (const b of branches) {
     assert.equal(b.type, "object");
@@ -123,11 +150,17 @@ test("DECISION_TOOL_SCHEMA: plain-object top level wrapping a 4-branch decision 
     assert.equal(typeof b.properties.kind.const, "string");
     for (const key of b.required as string[]) assert.ok(key in b.properties);
   }
-  // exactly the four supported variants are present
+  // exactly the five supported variants are present
   const variantKeys = branches
     .map((b) => (b.properties.action ? `action:${b.properties.action.const}` : `${b.properties.kind.const}`))
     .sort();
-  assert.deepEqual(variantKeys, ["action:click", "action:type", "blocked", "step_complete"]);
+  assert.deepEqual(variantKeys, [
+    "action:click",
+    "action:type",
+    "blocked",
+    "navigate_to_observed_url",
+    "step_complete",
+  ]);
   assert.equal(DECISION_TOOL_STRICT, true);
 });
 

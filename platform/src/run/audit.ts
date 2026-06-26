@@ -64,10 +64,13 @@ export function readManifest(runDir: string): RunManifest {
     fs.readFileSync(path.join(runDir, "run.json"), "utf8"),
   ) as RunManifest;
   assertSupportedRunLogSchemaVersion(manifest.runLogSchemaVersion);
-  // Version-aware boundary: a "1.2" manifest MUST carry valid, consistent mode metadata
-  // (effective + requested + complete typed browser; requestedMode === mode). Older
-  // "1.0"/"1.1" records may omit requestedMode/browser and are not held to this.
-  if (manifest.runLogSchemaVersion === "1.2") assertValidModeMetadata(manifest);
+  // Version-aware boundary: a "1.2"+ manifest MUST carry valid, consistent mode metadata
+  // (effective + requested + complete typed browser; requestedMode === mode). The 1.3 (D48)
+  // navigation addition did not change the mode-metadata contract, so 1.3 is held to it too.
+  // Older "1.0"/"1.1" records may omit requestedMode/browser and are not held to this.
+  if (manifest.runLogSchemaVersion === "1.2" || manifest.runLogSchemaVersion === "1.3") {
+    assertValidModeMetadata(manifest);
+  }
   return manifest;
 }
 

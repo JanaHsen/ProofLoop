@@ -361,7 +361,7 @@ function buildTimeline(
         break;
       }
       default:
-        break; // snapshot / llm_decision / retry / screenshot / guard / continuity are not timeline rows
+        break; // snapshot / llm_decision / navigation / retry / screenshot / guard / continuity are not timeline rows
     }
   }
   return timeline;

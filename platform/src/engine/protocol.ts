@@ -45,7 +45,15 @@ export type StepDecision =
       rationale: string;
     }
   | { kind: "step_complete"; rationale: string }
-  | { kind: "blocked"; reason: string };
+  | { kind: "blocked"; reason: string }
+  /**
+   * (D48) Revisit a URL OBSERVED earlier in this run, as a fresh document navigation. The
+   * model names the SOURCE snapshot id only — it never supplies a URL. The harness reads the
+   * trusted, same-origin destination from that snapshot's stored `pageUrl` and re-validates
+   * it before navigating. Used when the flow must revisit a created resource (e.g. an order's
+   * own page) and no page link provides the route.
+   */
+  | { kind: "navigate_to_observed_url"; snapshotId: string; rationale: string };
 
 // --- the tool the model is constrained to (Anthropic tool-use, wired in Task 5) ----
 
@@ -54,9 +62,10 @@ export const DECISION_TOOL_NAME = "decide_next_step";
 export const DECISION_TOOL_DESCRIPTION =
   "Choose exactly ONE next step toward completing the current flow step. Use an " +
   'action (click or type) targeting an element by its ref from the CURRENT snapshot; ' +
-  "or step_complete once the requested action has been performed and a response was " +
-  "observed; or blocked if the step cannot proceed. Never invent a ref or a selector " +
-  "— ref must be one of the refs in the current snapshot.";
+  "or navigate_to_observed_url to revisit, as a fresh visit, a page you ALREADY observed " +
+  "earlier in this run (you name that page's snapshot id — never a URL); or step_complete " +
+  "once the requested action has been performed and a response was observed; or blocked if " +
+  "the step cannot proceed. Never invent a ref, a selector, a URL, or a snapshot id.";
 
 /**
  * Whether the decision tool is registered as a strict tool. With strict tools the
@@ -154,6 +163,29 @@ export const DECISION_TOOL_SCHEMA = {
             },
           },
           required: ["kind", "reason"],
+        },
+        {
+          // navigate_to_observed_url (D48) — there is deliberately NO `url` field: the
+          // destination is read by the harness from the named snapshot's stored pageUrl,
+          // and additionalProperties:false rejects any model-supplied URL outright.
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "navigate_to_observed_url" },
+            snapshotId: {
+              type: "string",
+              description:
+                "The snapshot id (e.g. snapshot-016) of a page you OBSERVED earlier in " +
+                "this run whose URL you want to revisit as a fresh visit. You do NOT supply " +
+                "a URL — the harness reads the trusted, same-origin URL from that snapshot. " +
+                "Use only an id listed in the observed-pages section; never invent one.",
+            },
+            rationale: {
+              type: "string",
+              description: "A one-sentence reason for revisiting that observed page.",
+            },
+          },
+          required: ["kind", "snapshotId", "rationale"],
         },
       ],
     },
@@ -255,10 +287,24 @@ export function parseDecision(raw: unknown): DecisionParse {
         return { ok: false, error: "kind=blocked requires a non-empty reason" };
       }
       return { ok: true, decision: { kind: "blocked", reason: o.reason } };
+    case "navigate_to_observed_url":
+      // The model names a snapshot id ONLY. Any `url` it tries to smuggle in is ignored
+      // here (and rejected up front by the strict tool schema's additionalProperties:false):
+      // a destination is NEVER taken from model free text.
+      if (!isNonEmptyString(o.snapshotId)) {
+        return { ok: false, error: "kind=navigate_to_observed_url requires a non-empty snapshotId" };
+      }
+      if (!isNonEmptyString(o.rationale)) {
+        return { ok: false, error: "kind=navigate_to_observed_url requires a non-empty rationale" };
+      }
+      return {
+        ok: true,
+        decision: { kind: "navigate_to_observed_url", snapshotId: o.snapshotId, rationale: o.rationale },
+      };
     default:
       return {
         ok: false,
-        error: 'kind must be "action", "step_complete", or "blocked"',
+        error: 'kind must be "action", "step_complete", "blocked", or "navigate_to_observed_url"',
       };
   }
 }
@@ -277,6 +323,9 @@ export const INVALID_SNAPSHOT_REF = "INVALID_SNAPSHOT_REF";
 /** Stable error code recorded when a no-effect action is proposed again (harness backstop). */
 export const REPEATED_NO_EFFECT = "REPEATED_NO_EFFECT";
 
+/** Stable error code recorded when a navigate_to_observed_url fails the trusted-destination contract (D48). */
+export const NAV_REJECTED = "NAV_REJECTED";
+
 export type DecisionFailure =
   | { kind: "schema"; detail: string }
   | {
@@ -289,6 +338,11 @@ export type DecisionFailure =
       kind: "repeated_no_effect";
       detail: string;
       attemptedRef: string;
+    }
+  | {
+      kind: "nav_rejected";
+      detail: string;
+      attemptedSnapshotId: string;
     };
 
 /** Short, model-facing description of the available targets in the current snapshot. */
@@ -326,6 +380,14 @@ export function buildCorrectionNotice(
         `and you proposed the identical action again. Do not repeat it — choose a ` +
         `different action, a different element, or a complementary next action that ` +
         `advances the current step.`;
+      break;
+    case "nav_rejected":
+      head =
+        `Your navigate_to_observed_url named snapshot "${failure.attemptedSnapshotId}", ` +
+        `which is not a usable trusted destination: ${failure.detail}. You may only revisit ` +
+        `a same-origin page you already observed in this run — choose a snapshot id listed in ` +
+        `the observed-pages section, or return blocked if none provides the route. Never ` +
+        `supply a URL or invent a snapshot id.`;
       break;
   }
   return (

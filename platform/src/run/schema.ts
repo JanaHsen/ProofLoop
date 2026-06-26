@@ -13,25 +13,25 @@ import type { RawUsage } from "./pricing";
 import type { RedactedValue } from "./redaction";
 
 /**
- * The CURRENT run-log schema version the writer emits. Bumped to "1.2" for the Phase 5
- * (D35) additive change: `RunManifest.mode` widens from the literal `"headed"` to the
- * `BrowserMode` union and now carries the EFFECTIVE mode, plus the new optional
- * `requestedMode` and typed `browser` config. Like the "1.1" bump (D25 `failureDetail`),
- * the change is purely additive — the widened `mode` still accepts the old `"headed"`
- * value and the two new fields are optional and absent on every "1.0"/"1.1" shape, so
- * older records still parse.
+ * The CURRENT run-log schema version the writer emits. Bumped to "1.3" for the D48
+ * additive change: the new `navigation` event type (trusted observed-URL navigation) and
+ * the additive `navigate_to_observed_url` variant of `LoggedDecision`. Like every prior
+ * bump (1.1 = D25 `failureDetail`; 1.2 = D35/D36 mode metadata), the change is purely
+ * additive — the new event type simply does not appear in older logs, and the new logged
+ * decision variant is absent from every "1.0"/"1.1"/"1.2" record, so older records still
+ * parse unchanged. No existing field changed shape or meaning.
  *
  * Readers must check MEMBERSHIP in `SUPPORTED_RUN_LOG_SCHEMA_VERSIONS` — not pin the
  * single current version (that would refuse still-readable older logs) and not accept
  * arbitrary versions (that would silently mis-read a future shape).
  */
-export const RUN_LOG_SCHEMA_VERSION = "1.2";
+export const RUN_LOG_SCHEMA_VERSION = "1.3";
 
 /**
  * Every run-log schema version this codebase can READ. The writer emits the latest
  * (`RUN_LOG_SCHEMA_VERSION`); readers accept any member and reject the rest.
  */
-export const SUPPORTED_RUN_LOG_SCHEMA_VERSIONS = ["1.0", "1.1", "1.2"] as const;
+export const SUPPORTED_RUN_LOG_SCHEMA_VERSIONS = ["1.0", "1.1", "1.2", "1.3"] as const;
 export type SupportedRunLogSchemaVersion =
   (typeof SUPPORTED_RUN_LOG_SCHEMA_VERSIONS)[number];
 
@@ -218,6 +218,7 @@ export type RunEventType =
   | "snapshot"
   | "llm_decision"
   | "action"
+  | "navigation"
   | "error"
   | "retry"
   | "screenshot"
@@ -246,7 +247,14 @@ export type LoggedDecision =
       rationale: string;
     }
   | { kind: "step_complete"; rationale: string }
-  | { kind: "blocked"; reason: string };
+  | { kind: "blocked"; reason: string }
+  /**
+   * (run-log 1.3, D48) The model chose to revisit a URL it OBSERVED earlier in this run.
+   * It names the SOURCE snapshot id only — never a URL string. The deterministic executor
+   * reads the trusted, same-origin destination from that snapshot's stored `pageUrl`; the
+   * navigation itself is audited separately by a `navigation` event.
+   */
+  | { kind: "navigate_to_observed_url"; snapshotId: string; rationale: string };
 
 export type SnapshotKind = "pre_action" | "step_boundary" | "terminal";
 
@@ -347,6 +355,38 @@ export interface ActionEvent extends BaseRunEvent {
  */
 export const FAILURE_DETAIL_MAX_LEN = 500;
 
+/**
+ * (run-log 1.3, D48) Audit record for one trusted observed-URL navigation. The destination
+ * is NEVER a model-supplied URL: it is the stored `pageUrl` of `sourceSnapshotId` — a
+ * snapshot captured EARLIER in THIS run — re-validated same-origin against the configured
+ * SUT origin. Emitted on every attempt so a rejection (safety contract) or a failure
+ * (transport / redirect-escape) is auditable too, not just success.
+ */
+export interface NavigationEvent extends BaseRunEvent {
+  type: "navigation";
+  decisionId: string;
+  /** The historical snapshot (this run) whose stored pageUrl was the trusted destination. */
+  sourceSnapshotId: string;
+  /** ISO time the navigation was initiated (captured before the browser navigate call). */
+  startedAt: string;
+  /**
+   * The resolved, same-origin destination URL read from the source snapshot's stored
+   * `pageUrl`. Empty string on a pre-navigation rejection (no trusted URL was resolved).
+   */
+  resolvedUrl: string;
+  status: "executed" | "rejected" | "failed";
+  /** The fresh post-navigation snapshot id — present only on `status === "executed"`. */
+  resultingSnapshotId?: string;
+  /**
+   * The final URL after navigation/redirects, taken from the post-navigation snapshot's
+   * `pageUrl` — present only on `status === "executed"`. Confirmed same-origin before the
+   * step is allowed to proceed.
+   */
+  finalUrl?: string;
+  /** Why the navigation was rejected (safety contract) or failed (transport/redirect-escape). */
+  detail?: string;
+}
+
 export interface ErrorEvent extends BaseRunEvent {
   type: "error";
   /** Stable code, e.g. INVALID_SNAPSHOT_REF. */
@@ -391,6 +431,7 @@ export type RunEvent =
   | SnapshotEvent
   | LlmDecisionEvent
   | ActionEvent
+  | NavigationEvent
   | ErrorEvent
   | RetryEvent
   | ScreenshotEvent

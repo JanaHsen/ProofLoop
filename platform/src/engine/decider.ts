@@ -37,6 +37,16 @@ export interface AttemptSummary {
   observableEffect?: boolean;
 }
 
+/**
+ * (D48) A distinct page the run has ALREADY observed, offered to the model as a trusted
+ * revisit target. The model selects `snapshotId` (never a URL) for navigate_to_observed_url.
+ */
+export interface ObservedPage {
+  snapshotId: string;
+  pageUrl: string;
+  pageTitle?: string;
+}
+
 export interface DecisionContext {
   step: FlowStep;
   snapshot: ParsedSnapshot;
@@ -46,6 +56,12 @@ export interface DecisionContext {
   pageChangedSinceAction?: boolean;
   /** Present only on the single informed correction re-ask. */
   correction?: DecisionFailure;
+  /**
+   * (D48) Distinct same-origin pages observed earlier in this run, each addressable by its
+   * snapshot id for navigate_to_observed_url. Bounded; absent/empty ⇒ no trusted revisit
+   * target exists, so the model must not attempt one.
+   */
+  observedPages?: ObservedPage[];
 }
 
 export interface DeciderResult {
@@ -74,6 +90,14 @@ export const SYSTEM_PROMPT = [
   "    present because the action took effect — IS that response. This means an action",
   "    happened and a response was observed; it does NOT mean the result was correct. Do",
   "    not judge correctness — that is not your job.",
+  "  - navigate_to_observed_url: revisit, as a FRESH visit, a page you ALREADY observed",
+  "    earlier in this run. You name that page's snapshot id (from the observed-pages list",
+  "    below) — you do NOT supply a URL; the harness reads the trusted same-origin URL from",
+  "    that snapshot. Use this only when the step requires revisiting a created resource (for",
+  "    example an order's own page) and no link on the current page provides that route. Only",
+  "    ever name a snapshot id that appears in the observed-pages list; never invent one, and",
+  "    never supply a URL. If no observed page provides the route, return blocked rather than",
+  "    guess.",
   "  - blocked: a last resort; see the rule below.",
   "Before returning blocked, check both the current snapshot and the attempted-action",
   "history. If the requested action has already been performed, or the current page shows",
@@ -120,6 +144,15 @@ function buildUserMessage(ctx: DecisionContext): string {
     }
   } else {
     lines.push("No actions attempted yet in this step.");
+  }
+  if (ctx.observedPages && ctx.observedPages.length) {
+    lines.push("");
+    lines.push(
+      "Observed pages you may revisit with navigate_to_observed_url (name the snapshot id, not a URL):",
+    );
+    for (const p of ctx.observedPages) {
+      lines.push(`  ${p.snapshotId}: ${p.pageUrl}${p.pageTitle ? ` (${p.pageTitle})` : ""}`);
+    }
   }
   if (ctx.pageChangedSinceAction) {
     lines.push("");
