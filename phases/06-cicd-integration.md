@@ -960,6 +960,45 @@ Do not self-certify. Do not wire `pull_request` before approval.
   introducing a real behavioral regression → red with the regression named; a
   docs-only PR → does **not** trigger.
 
+#### G4 live-PR finding — BUG-002 detected, but the revisit step was blocked (run `28201899544`, PR #1, 2026-06-25)
+
+The G4 BUG-002 pull-request run did its job: **`add-to-cart:C2` FAILed** for the exact tax
+reason (Tax `$0.00` where 10% of Subtotal `$58.97` rounds to `$5.90`), no other criterion
+failed because of BUG-002, aggregation set `allPass:false`, final enforcement turned the job
+red, both artifact bundles uploaded, and the sticky comment updated in place. But it also
+produced two **unrelated** `INCONCLUSIVE` results, and diagnosis of `checkout:C3` found a
+genuine **executor capability gap**, not a CI defect:
+
+- The checkout revisit step required a *fresh visit* to the order's own URL. The executor
+  could only interact through **page affordances** (click/type), and the order page exposes
+  **no link to its own URL**, so the step was forced to `blocked`.
+- Because the step did not complete, the evidence resolver gave `checkout:C3` the
+  non-completing window (terminal snapshot only), **excluding the order-placement boundary** —
+  even though **the order-placement URL had already been captured** in an earlier snapshot.
+
+**Approved corrective subtask — trusted observed-URL navigation (D48).** A narrow, permanent
+executor capability that lets the model revisit a URL it **already observed in this run**, by
+naming the source snapshot id (never a URL), resolved deterministically to that snapshot's
+stored same-origin `pageUrl`. See **D48** in Phase 2. Implemented locally on `main`; **PR #1
+and its branch are unchanged** pending this gate.
+
+* [x] **D48 implemented** (executor decision + safety contract + run-log `1.3`), proven
+  offline (`platform/test/navigation.test.ts`, `loop-navigate.test.ts`,
+  `checkout-revisit.test.ts`): the revisit step **completes** instead of blocking, and the
+  resolver hands `checkout:C3` **both** the placement (S3) and post-revisit (S4) boundaries —
+  with **no** resolver change and **no** broadening of the non-completing window. `npm test` +
+  `npm run typecheck` green.
+* [ ] **Live re-validation of G4 (paid PR rerun) — NOT yet done.** G4 **remains open** until a
+  fresh PR run shows the BUG-002 FAIL standing *and* checkout clearing via observed-URL
+  navigation. Requires separate human authorization (a paid run).
+* [ ] The separate **login `/url:` citation** variation (G4's other `INCONCLUSIVE`) is a
+  citation-surface matter and is **NOT** fixed by D48 — tracked independently; not a blocker
+  for accepting the BUG-002 detection, but it is why G4 is not yet a clean signal.
+
+> **Task 5 is NOT complete.** The `pull_request` trigger and docs commits below are landed,
+> but live PR validation (clean PR green; BUG-002 PR red *with only the seeded regression*) is
+> not yet satisfied while D48 awaits its paid live re-validation.
+
 ✅ **COMMIT:** `feat(ci): enable path-filtered pull_request trigger`
 ✅ **COMMIT:** `docs: CI usage, secrets, and branch-protection guidance for ProofLoop`
 

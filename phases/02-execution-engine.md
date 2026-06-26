@@ -150,6 +150,49 @@ relative path, and digest. The run log is an **execution artifact, not a Phase 3
 evaluation record** (`FlowPlan.schemaVersion` versions the static plan; the run log
 carries its own `runLogSchemaVersion`).
 
+### D48 — Trusted navigation to a previously observed URL (G4 corrective; run-log `1.3`)
+
+A flow may need to revisit a resource it created (e.g. an order's own page) when **no link
+on the current page provides that route**. Phase 6 G4 exposed this: the executor could only
+interact through page affordances, so the checkout revisit step had no way to perform a
+fresh visit and was forced to `blocked` — even though the order's URL had already been
+captured in an earlier snapshot. The corrective capability is **narrow and permanent**:
+
+- **Decision.** A new decision variant `navigate_to_observed_url` joins `action` /
+  `step_complete` / `blocked`. The model names a **source snapshot id only** — never a URL:
+
+  ```ts
+  | { kind: "navigate_to_observed_url"; snapshotId: string; rationale: string }
+  ```
+
+- **Deterministic URL resolution.** The destination is the **stored `pageUrl` of that exact
+  snapshot**, captured earlier in **this** run. The model cannot invent, reconstruct, or
+  supply a URL; the strict tool schema has no `url` field (`additionalProperties:false`) and
+  the parser reads only `snapshotId`. There is **no general `goto(url)`**.
+- **Same-origin restriction.** Before navigating, the harness deterministically requires: the
+  snapshot exists; it belongs to this run; its stored digest still verifies; it has a
+  `pageUrl`; the URL is `http`/`https`, carries no credentials, and its **origin exactly
+  matches the SUT origin derived from `BASE_URL`**. After navigating, the **final** URL
+  (post-redirect) must still be same-origin, or the step fails — a redirect that escapes the
+  origin is refused.
+- **Snapshot-then-act.** The action begins from a fresh current snapshot, navigates through
+  the **existing browser/MCP abstraction** (the same bounded navigate the entry page uses),
+  then captures a **fresh post-navigation snapshot**; the next decision acts on its own fresh
+  snapshot. A fresh document navigation is progress by definition, so the no-progress backstop
+  is not armed across it. Iteration/timeout/correction/spend guards are unchanged.
+- **Audit.** Every attempt emits a `navigation` event recording the action, the source
+  snapshot id, the resolved same-origin destination, the start time, success/failure, the
+  resulting snapshot id, and the final URL. A contract violation is recorded
+  (`status:"rejected"`, error `NAV_REJECTED`) and gets **one informed correction**; a
+  transport failure or origin escape ends the step safely (`NAVIGATION_FAILED` /
+  `NAVIGATION_CROSS_ORIGIN`). No secrets are logged.
+- **Schema.** This is the additive run-log **`1.3`** bump (constitution edit accompanies it):
+  the new `navigation` event and the `navigate_to_observed_url` logged-decision variant. No
+  existing field changed; `1.0`–`1.2` records still parse, and readers tolerate `1.0`–`1.3`.
+
+"Fresh visit" means a fresh document navigation to the previously observed URL **reusing the
+current authenticated browser context** — not a new anonymous session.
+
 ---
 
 ## Task checklist

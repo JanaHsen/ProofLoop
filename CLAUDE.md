@@ -82,11 +82,14 @@ proofloop/
   fallback to headless. Mode may be parsed, validated, recorded, and reported, but **only
   the MCP/browser launch seam** may let it change runtime browser behavior (D32).
 - **Run-log is additive and version-tolerant** *(from Phase 5)*. The run log is at
-  `runLogSchemaVersion` **`1.2`**; every version-aware reader tolerates `1.0`/`1.1`/`1.2`.
-  The manifest records the **effective** `mode`, the **`requestedMode`**, and a **typed
-  `browser`** config (engine, isolation, viewport, accessibility-snapshots, vision-off) —
-  **never raw subprocess arguments**. Re-opening this Phase 2-frozen schema is human-gated
-  and always accompanies this constitution edit.
+  `runLogSchemaVersion` **`1.3`**; every version-aware reader tolerates
+  `1.0`/`1.1`/`1.2`/`1.3`. The manifest records the **effective** `mode`, the
+  **`requestedMode`**, and a **typed `browser`** config (engine, isolation, viewport,
+  accessibility-snapshots, vision-off) — **never raw subprocess arguments**. The **`1.3`**
+  bump (D48) is purely additive: a new `navigation` event (trusted observed-URL navigation)
+  and an additive `navigate_to_observed_url` variant of the logged decision; no existing
+  field changed, so `1.0`–`1.2` records still parse. Re-opening this Phase 2-frozen schema
+  is human-gated and always accompanies this constitution edit.
 - **Never auto-merge** *(from Phase 6)*. The platform posts a verdict; a human approves
   the merge. Always.
 
