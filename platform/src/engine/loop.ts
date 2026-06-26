@@ -22,7 +22,9 @@ import type { ToolResult } from "../mcp/client";
 import {
   DecisionFailure,
   INVALID_SNAPSHOT_REF,
+  NAV_NO_EFFECT,
   NAV_REJECTED,
+  NAV_WOULD_RESET,
   REPEATED_NO_EFFECT,
   StepDecision,
   parseDecision,
@@ -33,6 +35,7 @@ import {
   isAllowedFinalUrl,
   observedDisplayPath,
   resolveTrustedDestination,
+  sameDocumentUrlKey,
   verifyStoredSnapshotDigest,
 } from "./navigation";
 import {
@@ -192,6 +195,11 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
       // The last EXECUTED action's signature + the progress key it acted on, for the
       // deterministic repeated-no-effect backstop.
       let lastExecutedAction: { sig: string; preKey: string } | null = null;
+      // (D48) The last observed-URL navigation that produced NO page-state change: its
+      // destination same-document key + the post-navigation progress key. A repeat of the same
+      // effective navigation while the state is still unchanged is rejected before the browser
+      // (the bounded-navigation guard). Cleared on any state-changing navigation.
+      let lastNavNoEffect: { destKey: string; postKey: string } | null = null;
 
       decisionLoop: while (true) {
         if (opts.signal?.aborted) guard.cancel();
@@ -332,6 +340,50 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
           // re-validated same-origin. No model-supplied URL ever reaches the browser.
           const startedAt = clock().toISOString();
           const idx = observed.get(decision.snapshotId);
+          // Deterministic pre-navigation page-state key + same-document identity of the
+          // destination and the current page (internal only; never logged).
+          const preNavKey = progressKey(snap.yaml);
+          const destDocKey = idx ? sameDocumentUrlKey(idx.pageUrl) : null;
+          const curDocKey = sameDocumentUrlKey(snap.pageUrl);
+
+          // Emit a "navigation rejected (no progress)" record + ONE informed correction, before
+          // the browser is ever called, so a repeated/destructive navigation neither runs nor
+          // consumes the action budget. `detail` carries no URL value.
+          const rejectNavNoProgress = (code: string, detail: string): "stop" | "retry" => {
+            logger.append({ type: "navigation", decisionId, sourceSnapshotId: decision.snapshotId, startedAt, resolvedUrl: "", status: "rejected", detail: scrub(detail), stepId: step.id });
+            logger.append({ type: "error", code, detail: scrub(detail), decisionId, stepId: step.id });
+            const failure: DecisionFailure = { kind: "nav_no_progress", detail, attemptedSnapshotId: decision.snapshotId };
+            if (failureSig(failure) === lastCorrectionSig) return "stop";
+            lastCorrectionSig = failureSig(failure);
+            pendingCorrection = failure;
+            logger.append({ type: "retry", ofDecisionId: decisionId, reason: scrub(`navigation produced no progress: ${detail}`), stepId: step.id });
+            return "retry";
+          };
+
+          // (D48-C) Response preservation: refuse a same-document RELOAD that would discard a
+          // page-state change an element action in THIS step just produced, before it is
+          // accepted via step_complete. (Same document = same path+query, fragment ignored.)
+          if (destDocKey !== null && curDocKey !== null && destDocKey === curDocKey && pageChangedSinceAction) {
+            const r = rejectNavNoProgress(
+              NAV_WOULD_RESET,
+              "it would reload the page you are already on and discard the response your last action just produced — accept that response with step_complete instead",
+            );
+            if (r === "stop") { terminal = { status: "error" }; break stepsLoop; }
+            continue decisionLoop;
+          }
+
+          // (D48-B) No-effect repeat: refuse a repeat of an observed-URL navigation that already
+          // produced no page-state change while the state is still unchanged. The FIRST such
+          // navigation was allowed and executed; this is the repeat.
+          if (lastNavNoEffect !== null && destDocKey !== null && destDocKey === lastNavNoEffect.destKey && preNavKey === lastNavNoEffect.postKey) {
+            const r = rejectNavNoProgress(
+              NAV_NO_EFFECT,
+              "an identical navigation a moment ago produced no observable page change and the page is still unchanged",
+            );
+            if (r === "stop") { terminal = { status: "error" }; break stepsLoop; }
+            continue decisionLoop;
+          }
+
           const record = idx
             ? {
                 snapshotId: decision.snapshotId,
@@ -478,9 +530,20 @@ export async function runFlow(opts: RunFlowOptions): Promise<RunManifest> {
             stepId: step.id,
           });
 
-          // A fresh document navigation is progress by definition: do NOT arm the no-progress
-          // backstop on the nav transition (a same-URL reload would otherwise look stuck), and
-          // clear the element-action no-effect tracker. Corrections reset, like a real action.
+          // (D48) Bounded-navigation state evaluation. Compare the post-navigation page-state
+          // key to the pre-navigation key: an unchanged state (a reload or a redirect back to
+          // the same page) is a NO-EFFECT navigation — the first is allowed and executed, but its
+          // signature is remembered so an immediate identical repeat is rejected (guard B). A
+          // state-CHANGING navigation clears that memory and proceeds normally.
+          const postNavKey = progressKey(postSnap.yaml);
+          if (postNavKey === preNavKey && destDocKey !== null) {
+            lastNavNoEffect = { destKey: destDocKey, postKey: postNavKey };
+          } else {
+            lastNavNoEffect = null;
+          }
+          // The element-action no-progress streak and no-effect tracker are not armed across a
+          // navigation (the bounded-navigation guard above governs repeated navigation instead);
+          // click/type behaviour is unchanged. Corrections reset, like a real action.
           progressBaseline = null;
           lastActionKey = null;
           lastExecutedAction = null;
@@ -655,6 +718,8 @@ function failureSig(f: DecisionFailure): string {
       return `repeat:${f.attemptedRef}:${f.detail}`;
     case "nav_rejected":
       return `nav_rejected:${f.attemptedSnapshotId}:${f.detail}`;
+    case "nav_no_progress":
+      return `nav_no_progress:${f.attemptedSnapshotId}:${f.detail}`;
   }
 }
 

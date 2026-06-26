@@ -175,6 +175,24 @@ export function auditUrl(fullUrl: string): AuditUrl {
 }
 
 /**
+ * INTERNAL same-document identity key for a URL: origin + pathname + search (query), with the
+ * fragment dropped. Two URLs share a document iff their keys are equal — a `#frag`-only change
+ * is the same document, while a differing path OR query is a different document. Used ONLY for
+ * in-memory navigation comparisons (no-effect repeat detection, same-document reload guard); it
+ * is NEVER logged, so it may safely retain query VALUES (which the audit form must not). Returns
+ * `null` when the URL does not parse.
+ */
+export function sameDocumentUrlKey(url: string | undefined): string | null {
+  if (typeof url !== "string" || url.length === 0) return null;
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}${u.search}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The model-facing safe page descriptor: pathname plus a redacted query-KEY summary, with no
  * origin, credentials, query values, or fragment. The model needs only enough to recognize a
  * page it already saw; the complete internal destination is kept out of the prompt.

@@ -338,6 +338,12 @@ export const REPEATED_NO_EFFECT = "REPEATED_NO_EFFECT";
 /** Stable error code recorded when a navigate_to_observed_url fails the trusted-destination contract (D48). */
 export const NAV_REJECTED = "NAV_REJECTED";
 
+/** Stable error code: a repeated observed-URL navigation that produced no observable page change (D48). */
+export const NAV_NO_EFFECT = "NAV_NO_EFFECT";
+
+/** Stable error code: an observed-URL navigation that would reload the current page and discard a just-observed action response (D48). */
+export const NAV_WOULD_RESET = "NAV_WOULD_RESET";
+
 export type DecisionFailure =
   | { kind: "schema"; detail: string }
   | {
@@ -353,6 +359,12 @@ export type DecisionFailure =
     }
   | {
       kind: "nav_rejected";
+      detail: string;
+      attemptedSnapshotId: string;
+    }
+  | {
+      /** A repeated/destructive observed-URL navigation rejected BEFORE the browser (D48). */
+      kind: "nav_no_progress";
       detail: string;
       attemptedSnapshotId: string;
     };
@@ -400,6 +412,13 @@ export function buildCorrectionNotice(
         `a same-origin page you already observed in this run — choose a snapshot id listed in ` +
         `the observed-pages section, or return blocked if none provides the route. Never ` +
         `supply a URL or invent a snapshot id.`;
+      break;
+    case "nav_no_progress":
+      head =
+        `Your navigate_to_observed_url to snapshot "${failure.attemptedSnapshotId}" was not ` +
+        `performed: ${failure.detail}. Do NOT navigate there again. If the page already shows ` +
+        `the outcome this step requires, return step_complete; otherwise choose a different ` +
+        `action (click or type) that advances the step, or return blocked.`;
       break;
   }
   return (

@@ -988,16 +988,37 @@ and its branch are unchanged** pending this gate.
   resolver hands `checkout:C3` **both** the placement (S3) and post-revisit (S4) boundaries —
   with **no** resolver change and **no** broadening of the non-completing window. `npm test` +
   `npm run typecheck` green.
+* [x] **First D48 live PR run** — [run 28246172919](https://github.com/JanaHsen/ProofLoop/actions/runs/28246172919),
+  PR #1, 2026-06-26: **BUG-002 still correctly detected** (`add-to-cart:C2` FAIL for the tax
+  reason) and **D48 navigation executed safely** — the model selected `navigate_to_observed_url`,
+  it resolved same-origin, executed, and was sanitized + digested with no leak. **But the run
+  exposed a navigation-progress gap:** the model treated each fresh navigation as progress and
+  *looped*. `checkout:S4` re-navigated the order URL **8×** and tripped `MAX_ACTIONS_PER_STEP`
+  (no `step_end`), so `checkout:C3` was graded on a single **terminal** snapshot — checkout
+  PASSED, but **not** via the intended pinned S3+S4 two-boundary proof. The same gap broke two
+  flows: **login** looped `navigate_to_observed_url(/login)` (each redirecting to unchanged Home)
+  until the action cap, so the product-list step never ran → INCONCLUSIVE; **form** reloaded
+  `/form` after the `-5` rejection, erasing the response → INCONCLUSIVE. (The malformed sticky
+  comment was a transient GitHub-comment-layer artifact; the uploaded `summary.md`/`summary.json`
+  were clean, so **no workflow change** was made.)
+* [x] **Bounded-navigation correction** (`fix(executor): bound repeated and destructive
+  observed-url navigation`): one valid navigation (incl. a same-page fresh visit) is allowed; a
+  no-effect repeat is rejected before the browser (`NAV_NO_EFFECT`); a same-document reload that
+  would discard a just-observed element-action response is rejected (`NAV_WOULD_RESET`); a
+  state-changing navigation is never falsely rejected. Proven offline by checkout/login/form
+  replays + guard tests (`platform/test/loop-navigate-bounded.test.ts`,
+  `checkout-revisit.test.ts`): checkout:S4 now emits `step_end` and C3 gets the pinned S3+S4
+  window; login's loop is broken and the flow proceeds; form's `-5` rejection is preserved at the
+  boundary. No schema/version change; verifier, resolver windows, flows, and URL-safety rules
+  untouched.
 * [ ] **Live re-validation of G4 (paid PR rerun) — NOT yet done.** G4 **remains open** until a
-  fresh PR run shows the BUG-002 FAIL standing *and* checkout clearing via observed-URL
-  navigation. Requires separate human authorization (a paid run).
-* [ ] The separate **login `/url:` citation** variation (G4's other `INCONCLUSIVE`) is a
-  citation-surface matter and is **NOT** fixed by D48 — tracked independently; not a blocker
-  for accepting the BUG-002 detection, but it is why G4 is not yet a clean signal.
+  fresh PR run shows the BUG-002 FAIL standing as the sole regression, checkout completing S4
+  cleanly (pinned C3), and login + form clearing. Requires separate human authorization (a paid run).
 
-> **Task 5 is NOT complete.** The `pull_request` trigger and docs commits below are landed,
-> but live PR validation (clean PR green; BUG-002 PR red *with only the seeded regression*) is
-> not yet satisfied while D48 awaits its paid live re-validation.
+> **Task 5 is NOT complete, and D48 is NOT marked complete.** D48's safety and same-origin
+> execution are proven live, but checkout:S4 looped/guard-tripped (checkout PASS was not yet the
+> intended two-boundary proof) and the same gap left login and form INCONCLUSIVE. The
+> bounded-navigation correction is landed and proven offline; G4 awaits a paid live revalidation.
 
 ✅ **COMMIT:** `feat(ci): enable path-filtered pull_request trigger`
 ✅ **COMMIT:** `docs: CI usage, secrets, and branch-protection guidance for ProofLoop`

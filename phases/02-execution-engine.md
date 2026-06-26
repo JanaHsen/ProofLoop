@@ -178,14 +178,32 @@ captured in an earlier snapshot. The corrective capability is **narrow and perma
 - **Snapshot-then-act.** The action begins from a fresh current snapshot, navigates through
   the **existing browser/MCP abstraction** (the same bounded navigate the entry page uses),
   then captures a **fresh post-navigation snapshot**; the next decision acts on its own fresh
-  snapshot. A fresh document navigation is progress by definition, so the no-progress backstop
-  is not armed across it. Iteration/timeout/correction/spend guards are unchanged.
+  snapshot. Iteration/timeout/correction/spend guards are unchanged.
+- **Bounded, state-aware navigation (live-run correction).** A navigation is **not** assumed
+  to be progress. The harness captures the deterministic page-state key before navigating and
+  compares it to the post-navigation key:
+  - **One valid navigation is always allowed**, including a **same-page fresh visit** (a reload
+    of the page you are on, e.g. the checkout revisit). The first attempt executes.
+  - An **immediate identical repeat that produced no state change** (a reload or a redirect
+    back to the same page — its state key is unchanged) is **rejected before the browser**
+    (`error NAV_NO_EFFECT`), with **one informed correction** nudging `step_complete` / a
+    different action / `blocked`. A rejection consumes no action budget; a repeated identical
+    proposal stops safely under the one-correction limit (it never loops).
+  - A **same-document reload is refused when it would discard a response a just-performed
+    element action produced** before that response is accepted via `step_complete` (`error
+    NAV_WOULD_RESET`) — so a validation/result page cannot be erased by a reload. Same-document
+    is a normalized path+query comparison (fragment ignored).
+  - A **state-changing** navigation is never falsely rejected; it clears the no-effect memory
+    and proceeds. These checks are a run-local, step-local guard — **no schema/version change**;
+    they reuse the existing `navigation`/`error`/`retry` shapes. Comparisons use internal
+    page-state and same-document keys only; **no raw URL value is logged**.
 - **Audit.** Every attempt emits a `navigation` event recording the action, the source
-  snapshot id, the resolved same-origin destination, the start time, success/failure, the
-  resulting snapshot id, and the final URL. A contract violation is recorded
-  (`status:"rejected"`, error `NAV_REJECTED`) and gets **one informed correction**; a
-  transport failure or origin escape ends the step safely (`NAVIGATION_FAILED` /
-  `NAVIGATION_CROSS_ORIGIN`). No secrets are logged.
+  snapshot id, the resolved **sanitized** same-origin destination, the start time,
+  success/failure, the resulting snapshot id, and the sanitized final URL. A trusted-destination
+  violation is recorded (`status:"rejected"`, error `NAV_REJECTED`); a no-effect/destructive
+  navigation is rejected (`status:"rejected"`, error `NAV_NO_EFFECT` / `NAV_WOULD_RESET`) with
+  one informed correction; a transport failure or origin escape ends the step safely
+  (`NAVIGATION_FAILED` / `NAVIGATION_CROSS_ORIGIN`). No secrets or raw URLs are logged.
 - **Schema.** This is the additive run-log **`1.3`** bump (constitution edit accompanies it):
   the new `navigation` event and the `navigate_to_observed_url` logged-decision variant. No
   existing field changed; `1.0`–`1.2` records still parse, and readers tolerate `1.0`–`1.3`.

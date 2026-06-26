@@ -159,3 +159,58 @@ test("checkout:C3 — observed-URL revisit completes S4 and the resolver hands C
     fs.rmSync(runsRoot, { recursive: true, force: true });
   }
 });
+
+/**
+ * (D48 bounded navigation) Replays the live checkout:S4 loop: the model proposes the SAME
+ * order-page revisit twice. The first executes; the second is a no-effect repeat and is rejected
+ * before the browser; the correction lets S4 step_complete instead of looping to MAX_ACTIONS.
+ */
+class CheckoutLoopDecider implements Decider {
+  private s4 = 0;
+  async decide(ctx: DecisionContext): Promise<DeciderResult> {
+    let inner: unknown;
+    if (ctx.step.ordinal < 4) {
+      inner = { kind: "step_complete", rationale: "the order page is already shown" };
+    } else {
+      this.s4 += 1;
+      const order = (ctx.observedPages ?? []).find((p: ObservedPage) => p.displayPath === "/order/O-00001");
+      inner =
+        this.s4 <= 2 && order
+          ? { kind: "navigate_to_observed_url", snapshotId: order.snapshotId, rationale: "revisit the order" }
+          : { kind: "step_complete", rationale: "the order is still retrievable" };
+    }
+    return { rawDecision: { decision: inner }, usage: { ...USAGE }, latencyMs: 4, model: "claude-sonnet-4-6" };
+  }
+}
+
+test("checkout:C3 (bounded) — a repeated S4 revisit is rejected before the browser, S4 still completes, and C3 gets the pinned S3+S4 window (not just a terminal snapshot)", async () => {
+  const plan = parseFlow(fs.readFileSync(CHECKOUT_FLOW, "utf8"), "checkout");
+  const runsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "proofloop-checkout-bounded-"));
+  const runId = "checkout-bounded-run";
+  try {
+    const manifest = await runFlow({
+      plan, baseUrl: ORIGIN, runId, runsRoot, model: "claude-sonnet-4-6",
+      pricingConfigId: "anthropic-2026-06", ...MODE_META, decider: new CheckoutLoopDecider(), actuator: new OrderPageActuator(), now: NOW,
+    });
+    const runDir = path.join(runsRoot, runId);
+    const { events } = readEvents(path.join(runDir, "events.jsonl"));
+
+    // S4 completes (no MAX_ACTIONS_PER_STEP trip); the first revisit executed, the repeat rejected.
+    assert.equal(manifest.executionStatus, "completed");
+    assert.ok(events.find((e) => e.type === "step_end" && e.stepId === "checkout:S4"), "S4 emits step_end");
+    const ns = events.filter((e): e is NavigationEvent => e.type === "navigation");
+    assert.equal(ns.filter((n) => n.status === "executed").length, 1, "only the first revisit executes");
+    assert.equal(ns.filter((n) => n.status === "rejected").length, 1, "the no-effect repeat is rejected");
+    assert.equal(events.filter((e) => e.type === "error" && (e as any).code === "NAV_NO_EFFECT").length, 1);
+    assert.ok(!events.some((e) => e.type === "guard_tripped"), "no MAX_ACTIONS_PER_STEP loop");
+
+    // C3 gets the pinned two-boundary window — NOT a single terminal snapshot.
+    const c3 = resolveEvidence(plan, runDir).find((r) => r.criterionId === "checkout:C3")!;
+    assert.equal(c3.evidence?.windowKind, "pinned");
+    const stepIds = c3.evidence!.snapshots.map((s) => s.stepId);
+    assert.ok(stepIds.includes("checkout:S3") && stepIds.includes("checkout:S4"), "C3 has both S3 and S4 boundaries");
+    assert.ok(c3.evidence!.snapshots.length >= 2, "C3 no longer relies on only a terminal snapshot");
+  } finally {
+    fs.rmSync(runsRoot, { recursive: true, force: true });
+  }
+});
