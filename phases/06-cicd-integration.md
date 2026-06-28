@@ -955,13 +955,14 @@ Do not self-certify. Do not wire `pull_request` before approval.
   (do **not** add this as a branch-protection required check); and limitations
   (same-repository PRs only; single-run ≠ reliability → Phase 8; clean-SUT gate, not
   accuracy → Phase 7; trace/video → Phase 9).
-* [ ] **Live same-repository PR validation:** open a PR touching a filtered path →
+* [x] **Live same-repository PR validation:** open a PR touching a filtered path →
   the workflow runs, upserts one sticky comment, and is green on a clean change; a PR
   introducing a real behavioral regression → red with the regression named; a
   docs-only PR → does **not** trigger.
   *(Status: **G3** green-on-clean — accepted; **G4** regression-named red — accepted via run
-  `28251442023` (see "G4 live re-validation — accepted" above); **G5** docs-only no-trigger — ⏳
-  not yet performed, the sole remaining validation.)*
+  `28251442023` (see "G4 live re-validation — accepted" above); **G5** docs-only no-trigger —
+  accepted via PR head `a8d7739` (see "G5 docs-only no-trigger — accepted" below). All three
+  live-PR validations passed.)*
 
 #### G4 live-PR finding — BUG-002 detected, but the revisit step was blocked (run `28201899544`, PR #1, 2026-06-25)
 
@@ -1096,13 +1097,35 @@ offline-tested protections** and were **not deliberately provoked** in this live
   bounded-repeat behavior (happy path, same-origin final-URL enforcement, sanitized records, and
   the `NAV_NO_EFFECT` correction). `NAV_WOULD_RESET` and the hostile/malformed/cross-origin
   rejections stay offline-tested and were not provoked here.
-* **Task 5 remains incomplete only because G5** — the docs-only path-filter no-trigger validation
-  — has not yet been performed.
+* **G5 — docs-only path-filter no-trigger validation: accepted** (PR head `a8d7739`; see "G5
+  docs-only no-trigger — accepted" below). A PR whose diff was entirely under `phases/**` created
+  **no** ProofLoop workflow run, **no** check, and **no** sticky comment.
+* **Task 5 — complete.** All three live-PR validations (G3, G4, G5) passed; the trigger,
+  documentation, fork guard, and sticky-comment upsert are in place.
 * **No additional paid G4 run is required.**
 
-> **D48 is now complete and live-validated; G4 regression detection is accepted.** Task 5 stays
-> open solely for the **G5** docs-only path-filter no-trigger validation. No executor, verifier,
-> resolver, flow, workflow, or test behavior was changed to record this acceptance.
+> **D48 is complete and live-validated; G3, G4, and G5 are all accepted; Task 5 is complete.**
+> No executor, verifier, resolver, flow, workflow, or test behavior was changed to record these
+> acceptances.
+
+#### G5 docs-only no-trigger — accepted (PR head `a8d7739`, 2026-06-28)
+
+A same-repository pull request was opened whose entire diff was a single documentation change
+under `phases/**` (`phases/06-cicd-integration.md`). The ProofLoop workflow's `pull_request.paths`
+filter covers only `app/**`, `platform/**`, `fixtures/flows/**`, and
+`.github/workflows/proofloop.yml`, so `phases/**` is outside it. Observed at the human gate:
+
+* the docs-only PR changed only `phases/**`;
+* **no** ProofLoop workflow run was created (Actions → ProofLoop filtered to
+  `gate/task5-docs-only-pr` showed `0 workflow run results`);
+* **no** ProofLoop check appeared (the PR showed `Checks 0`);
+* **no** ProofLoop sticky comment appeared;
+* **no** `proofloop-runs` / `proofloop-ci-summary` artifacts were created;
+* **no** Anthropic/model usage occurred (no run ⇒ no preflight/executor/verifier call).
+
+**Path filtering therefore worked as designed:** a change outside the filtered paths does not
+trigger ProofLoop. The branch-only validation PR was **closed without merging** and its disposable
+branch `gate/task5-docs-only-pr` deleted; `main` never carried the validation commit.
 
 ✅ **COMMIT:** `feat(ci): enable path-filtered pull_request trigger`
 ✅ **COMMIT:** `docs: CI usage, secrets, and branch-protection guidance for ProofLoop`
@@ -1163,13 +1186,58 @@ offline-tested protections** and were **not deliberately provoked** in this live
   same-origin final-URL enforcement, sanitized records, `NAV_NO_EFFECT` correction). login + form
   INCONCLUSIVE are contained Phase 8 follow-ups — see the Task 5 "G4 live re-validation — accepted"
   record above.
-* [ ] `pull_request` trigger added with path filters; sticky comment upserts (one
+* [x] 🚦 G5 docs-only no-trigger validation accepted (PR head a8d7739): a PR changing only
+  `phases/**` created no ProofLoop run, no check, no sticky comment, no `proofloop-runs` /
+  `proofloop-ci-summary` artifacts, and no model usage — path filtering worked as designed; the
+  branch-only PR was closed without merging (see the Task 5 "G5 docs-only no-trigger — accepted"
+  record above).
+* [x] `pull_request` trigger added with path filters; sticky comment upserts (one
   comment, updated in place); docs-only PR does not trigger. *(Trigger added ✅; sticky-comment
-  upsert ✅; **docs-only no-trigger (G5) ⏳ — the sole remaining item.**)*
+  upsert ✅; docs-only no-trigger **(G5) — proven** via PR head `a8d7739`.)*
 * [x] README documents triggers, the single secret, the demo, branch-protection
   guidance (D47), and limitations.
-* [ ] Not registered as a branch-protection required check.
+* [x] Not registered as a branch-protection required check. *(By design — D47: this work never
+  wired ProofLoop into branch protection, and ProofLoop is advisory and never auto-merges. The
+  live repository branch-protection configuration is a repo-admin responsibility and is **not**
+  asserted here beyond that design requirement — in particular, ProofLoop is **not** claimed to be
+  configured as a required check.)*
 * [x] `npm test` and `npm run typecheck` pass in `platform/`.
+
+---
+
+## Phase 6 — final validation status (COMPLETE)
+
+All Phase 6 gates are accepted. The platform runs itself in CI, boots a clean SUT, executes the
+five canonical flows serially, aggregates deterministically, posts **one advisory verdict**, and
+leaves the merge to a human (**D47 — ProofLoop never auto-merges and is not a required check**).
+
+| Gate | What it proved | Evidence |
+|---|---|---|
+| **G1 / G2 — activation + workflow-contract** | Runs on `workflow_dispatch`; boots a clean SUT; runs the five flows serially; aggregates to a deterministic `summary.json`/`summary.md`; enforces on `allPass`; 21/21 static workflow-contract checks pass. | clean dispatch rerun `28090336496` (all-PASS); static suite |
+| **G3 — clean same-repository PR** | The path-filtered same-repo `pull_request` trigger fires, upserts one sticky comment, and runs the full run→verify→report→aggregate path; green on a clean change. | same-repo PR path + sticky upsert demonstrated; green-on-clean pipeline (dispatch `28090336496`); same-repo PR path confirmed by run `28251442023` |
+| **G4 — intentional BUG-002 regression detection** | A seeded behavioral regression turns the gate red with the regression **named** (not "could not clear"): `add-to-cart:C2` FAIL — Tax `$0.00` where 10% of Subtotal `$58.97` = `$5.90`; `allPass:false`, job red. | dispatch `28092952454`; PR run `28251442023` |
+| **D48 — trusted observed-URL navigation + bounded repeat** | `navigate_to_observed_url` resolves a stored same-origin URL, executes, enforces the same-origin final URL, and logs sanitized+digested records; a no-effect repeat is rejected (`NAV_NO_EFFECT`) and the step then `step_complete`s; `checkout:C3` is graded on the pinned **S3 (`snapshot-017`) + S4 (`snapshot-022`)** two-boundary proof, not terminal-only. | PR run `28251442023` (checkout `completed`; all four `step_end`) |
+| **G5 — docs-only no-trigger** | A PR whose diff is entirely under `phases/**` creates **no** workflow run, **no** check, **no** sticky comment, **no** artifacts, and **no** model usage — path filtering works as designed. | PR head `a8d7739` (0 runs; Checks 0) |
+
+**Evidence-integrity guard** (synthetic-corruption gate `28171606181`) is also accepted: a
+source-id mismatch makes `report:ci` fail loud, publish the harness fallback, and turn the job red
+without inventing a verdict.
+
+### Known Phase 8 follow-ups (reliability; not Phase 6 defects)
+* **Login citation-discipline reliability** — the verifier can cite a faithful fact in a
+  non-citable shape (e.g. the raw `/url:` link destination at a link ref), which the
+  PASS-plus-invalid-citation guard correctly downgrades to INCONCLUSIVE. Improve citation
+  discipline; do **not** weaken the downgrade or broaden citation surfaces in Phase 6.
+* **Redundant-action / negative-probe execution reliability** — the executor can spend its
+  no-progress allowance re-entering already-correct values and never reach a negative-probe input
+  (e.g. form `-5`); `NO_PROGRESS` then stops the run and the non-completing-FAIL evidence floor
+  correctly declines a FAIL on stale evidence. Improve redundant-action avoidance and negative-probe
+  coverage; do **not** weaken the guard or the evidence floor in Phase 6.
+
+Both follow-ups were produced by **as-designed deterministic gates working correctly** and are
+tracked for **Phase 8** (repeated-run reliability / verdict variance). They do not block Phase 6.
+
+**Phase 6 is complete.**
 
 ---
 
