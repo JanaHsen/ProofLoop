@@ -1,5 +1,15 @@
 # Phase 6 — DevOps-Ready CI/CD Integration 🔄
 
+<!--
+G5 — DOCS-ONLY PATH-FILTER VALIDATION. BRANCH-ONLY; DO NOT MERGE.
+This note exists solely to give branch `gate/task5-docs-only-pr` a diff that lives
+entirely under `phases/**`, so opening/updating that PR proves the ProofLoop workflow
+(`.github/workflows/proofloop.yml`, whose `pull_request.paths` covers only `app/**`,
+`platform/**`, `fixtures/flows/**`, and `.github/workflows/proofloop.yml`) does NOT
+trigger on a docs-only change. This commit changes no project behavior and must never
+be merged into `main`.
+-->
+
 > **Goal:** The platform runs itself automatically when the application or tester
 > changes, executes the five canonical flows against a freshly-booted clean SUT,
 > aggregates the results deterministically, posts one sticky report on the pull
