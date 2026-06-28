@@ -938,7 +938,7 @@ Do not self-certify. Do not wire `pull_request` before approval.
 ---
 
 ### Task 5 — Activate `pull_request` + documentation + live PR validation
-* [ ] Add the `pull_request` trigger with path filters. `platform/**` already
+* [x] Add the `pull_request` trigger with path filters. `platform/**` already
   covers `platform/config/**` and `platform/package-lock.json`, and `app/**` already
   covers `app/package-lock.json`, so the filter is just:
   ```yaml
@@ -948,8 +948,8 @@ Do not self-certify. Do not wire `pull_request` before approval.
     - "fixtures/flows/**"
     - ".github/workflows/proofloop.yml"
   ```
-* [ ] Confirm the fork guard and sticky-comment steps now activate for PR events.
-* [ ] README: how CI triggers (path-filtered same-repo PRs + manual dispatch);
+* [x] Confirm the fork guard and sticky-comment steps now activate for PR events.
+* [x] README: how CI triggers (path-filtered same-repo PRs + manual dispatch);
   that `ANTHROPIC_API_KEY` is the only repository secret and `SESSION_SECRET` is
   ephemeral; how to run the seeded-bug demo via dispatch; the **D47** guidance
   (do **not** add this as a branch-protection required check); and limitations
@@ -959,6 +959,9 @@ Do not self-certify. Do not wire `pull_request` before approval.
   the workflow runs, upserts one sticky comment, and is green on a clean change; a PR
   introducing a real behavioral regression → red with the regression named; a
   docs-only PR → does **not** trigger.
+  *(Status: **G3** green-on-clean — accepted; **G4** regression-named red — accepted via run
+  `28251442023` (see "G4 live re-validation — accepted" above); **G5** docs-only no-trigger — ⏳
+  not yet performed, the sole remaining validation.)*
 
 #### G4 live-PR finding — BUG-002 detected, but the revisit step was blocked (run `28201899544`, PR #1, 2026-06-25)
 
@@ -1011,14 +1014,95 @@ and its branch are unchanged** pending this gate.
   window; login's loop is broken and the flow proceeds; form's `-5` rejection is preserved at the
   boundary. No schema/version change; verifier, resolver windows, flows, and URL-safety rules
   untouched.
-* [ ] **Live re-validation of G4 (paid PR rerun) — NOT yet done.** G4 **remains open** until a
-  fresh PR run shows the BUG-002 FAIL standing as the sole regression, checkout completing S4
-  cleanly (pinned C3), and login + form clearing. Requires separate human authorization (a paid run).
+* [x] **Live re-validation of G4 (paid PR rerun) — DONE; G4 accepted at the human gate.**
+  [run 28251442023](https://github.com/JanaHsen/ProofLoop/actions/runs/28251442023), PR #1,
+  2026-06-28 (real Anthropic spend — not the earlier billing/credit interruption). Outcomes:
+  login INCONCLUSIVE, **add-to-cart FAIL (BUG-002)**, checkout PASS, checkout-mobile PASS, form
+  INCONCLUSIVE. Accepted on the read-only artifact diagnosis recorded below.
 
-> **Task 5 is NOT complete, and D48 is NOT marked complete.** D48's safety and same-origin
-> execution are proven live, but checkout:S4 looped/guard-tripped (checkout PASS was not yet the
-> intended two-boundary proof) and the same gap left login and form INCONCLUSIVE. The
-> bounded-navigation correction is landed and proven offline; G4 awaits a paid live revalidation.
+#### G4 live re-validation — accepted (run `28251442023`, PR #1, 2026-06-28)
+
+##### G4 / BUG-002 — regression-detection gate accepted
+* Workflow run: `28251442023`.
+* `add-to-cart:C2` correctly returned **`FAIL`** (the sole regression; valid citations, no
+  deterministic downgrade).
+* Subtotal was `$58.97`.
+* Expected 10% Tax was `$5.90`.
+* Displayed Tax was `$0.00`.
+* Aggregation and final enforcement correctly kept the PR gate **red** (`allPass:false`).
+* **BUG-002 therefore remained correctly detected.**
+
+##### D48 live validation — checkout completed through the intended mechanism
+* checkout execution status: **`completed`**.
+* all four steps emitted **`step_end`** (S1, S2, S3, S4).
+* checkout selected **`navigate_to_observed_url`**.
+* the first revisit (S4, `decision-014`) **executed** against the stored same-origin order URL
+  (`http://localhost:3000/order/O-00001`), resolving source `snapshot-016` → result `snapshot-019`.
+* a repeated identical revisit (S4, `decision-015`) was **rejected before the browser with
+  `NAV_NO_EFFECT`**.
+* the correction led to **`step_complete`** (`decision-016` → boundary `snapshot-022`).
+* checkout received a **pinned** window containing:
+  * S3 placement boundary **`snapshot-017`**;
+  * S4 revisit boundary **`snapshot-022`**.
+* **`checkout:C3` compared both states and passed** — identical items and identical Total `$58.97`
+  between placement and revisit; all ten C3 citations valid.
+* it did **not** rely on terminal-only evidence — the terminal `snapshot-023` is neither in C3's
+  pinned window nor cited.
+
+Live validation covered:
+* the **trusted navigation happy path** (`navigate_to_observed_url` → resolve → browser →
+  `executed`; exercised twice in checkout — S2 and S4 — and once in login, including a same-origin
+  redirect `/login`→`/`);
+* **same-origin final-URL enforcement** (each executed navigation validated a same-origin
+  `finalUrl` before its snapshot was persisted);
+* **sanitized navigation records** (resolved/final URLs reduced to origin+path+query-keys with
+  `sha256` digests — no secret or value leak);
+* the **bounded no-effect correction** (`NAV_NO_EFFECT` rejected the repeat pre-browser, emitted
+  `error`+`retry`, after which the model chose `step_complete`).
+
+`NAV_WOULD_RESET` and the hostile/malformed/cross-origin rejection paths remain **deterministic
+offline-tested protections** and were **not deliberately provoked** in this live run.
+
+**Marked accepted:** the **D48 live gate** and the **G4 regression-detection gate**.
+
+##### Contained follow-ups (tracked for Phase 8 reliability; not Phase 6 work)
+
+**Login citation reliability.**
+* application behavior passed;
+* all login steps completed;
+* terminal page was Products and the product list loaded;
+* the verifier cited the non-citable raw link destination `/url: /products` at link ref `e5`;
+* the PASS-plus-invalid-citation downgrade correctly produced INCONCLUSIVE;
+* track improved citation discipline as Phase 8 reliability work;
+* do not expand citation surfaces or weaken the downgrade during Phase 6.
+
+**Form execution coverage.**
+* S2 never reached Amount `-5` or Submit;
+* the model spent its no-progress allowance re-entering already-correct Name and Email values;
+* `NO_PROGRESS` correctly stopped the run;
+* the non-completing-FAIL evidence floor correctly rejected a FAIL based on stale amount `25`;
+* track redundant-action avoidance and negative-probe execution coverage as Phase 8 reliability work;
+* do not weaken the guard or evidence floor during Phase 6.
+
+##### Gate status
+* **G3 — clean same-repository PR gate: accepted.** The path-filtered same-repo `pull_request`
+  trigger, the single sticky-comment upsert, and the green-on-clean pipeline are all demonstrated;
+  run `28251442023` confirms the same-repo PR path executes the full run→verify→report→aggregate
+  pipeline end-to-end.
+* **G4 — real-regression detection gate: accepted** with the documented reliability caveats above
+  (the login and form INCONCLUSIVE results are contained verifier/executor reliability follow-ups,
+  **not** CI or D48 defects, and were each correctly produced by an as-designed deterministic gate).
+* **D48 — trusted observed-URL navigation: live-validated** for its required happy path and
+  bounded-repeat behavior (happy path, same-origin final-URL enforcement, sanitized records, and
+  the `NAV_NO_EFFECT` correction). `NAV_WOULD_RESET` and the hostile/malformed/cross-origin
+  rejections stay offline-tested and were not provoked here.
+* **Task 5 remains incomplete only because G5** — the docs-only path-filter no-trigger validation
+  — has not yet been performed.
+* **No additional paid G4 run is required.**
+
+> **D48 is now complete and live-validated; G4 regression detection is accepted.** Task 5 stays
+> open solely for the **G5** docs-only path-filter no-trigger validation. No executor, verifier,
+> resolver, flow, workflow, or test behavior was changed to record this acceptance.
 
 ✅ **COMMIT:** `feat(ci): enable path-filtered pull_request trigger`
 ✅ **COMMIT:** `docs: CI usage, secrets, and branch-protection guidance for ProofLoop`
@@ -1073,9 +1157,16 @@ and its branch are unchanged** pending this gate.
 * [x] 🚦 Live-CI gate passed on a clean dispatch and a seeded-bug dispatch (clean rerun
   28090336496 all-PASS; BUG-002 28092952454 add-to-cart FAIL; synthetic corruption 28171606181
   evidence-integrity red — see the "Accepted live-CI gates" run record above).
+* [x] 🚦 G4 live PR re-validation accepted (run 28251442023, PR #1): BUG-002 the sole regression
+  (`add-to-cart:C2` FAIL, Tax `$0.00` vs expected `$5.90`); `checkout:C3` cleared via the pinned
+  S3 (`snapshot-017`) + S4 (`snapshot-022`) two-boundary proof; D48 live-validated (happy path,
+  same-origin final-URL enforcement, sanitized records, `NAV_NO_EFFECT` correction). login + form
+  INCONCLUSIVE are contained Phase 8 follow-ups — see the Task 5 "G4 live re-validation — accepted"
+  record above.
 * [ ] `pull_request` trigger added with path filters; sticky comment upserts (one
-  comment, updated in place); docs-only PR does not trigger.
-* [ ] README documents triggers, the single secret, the demo, branch-protection
+  comment, updated in place); docs-only PR does not trigger. *(Trigger added ✅; sticky-comment
+  upsert ✅; **docs-only no-trigger (G5) ⏳ — the sole remaining item.**)*
+* [x] README documents triggers, the single secret, the demo, branch-protection
   guidance (D47), and limitations.
 * [ ] Not registered as a branch-protection required check.
 * [x] `npm test` and `npm run typecheck` pass in `platform/`.
